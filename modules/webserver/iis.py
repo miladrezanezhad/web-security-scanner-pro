@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 """
 Microsoft IIS Security Scanner Module.
-Tests for common IIS security misconfigurations and vulnerabilities.
-
-References:
-    - IIS Security: https://docs.microsoft.com/en-us/iis/
-    - OWASP: https://owasp.org/www-project-web-security-testing-guide/
 """
 
 import re
@@ -27,21 +22,7 @@ class Scanner:
             'start': '/iisstart.htm',
             'welcome': '/welcome.png',
             'trace': '/trace.axd',
-            'aspnet_client': '/aspnet_client/',
             'web_config': '/web.config',
-            'owa': '/owa/',
-            'ecp': '/ecp/',
-            'ews': '/ews/',
-            'autodiscover': '/autodiscover/',
-            'powershell': '/powershell/',
-        }
-        
-        self.iis_versions = {
-            '10.0': 'IIS 10.0 (Windows Server 2016/2019/2022)',
-            '8.5': 'IIS 8.5 (Windows Server 2012 R2)',
-            '8.0': 'IIS 8.0 (Windows Server 2012)',
-            '7.5': 'IIS 7.5 (Windows Server 2008 R2)',
-            '7.0': 'IIS 7.0 (Windows Server 2008)',
         }
     
     def run(self) -> Dict:
@@ -54,7 +35,6 @@ class Scanner:
             'version': None,
             'web_config_exposed': False,
             'trace_axd_exposed': False,
-            'exchange_detected': False,
             'findings': []
         }
         
@@ -68,6 +48,7 @@ class Scanner:
                 'title': 'No Microsoft IIS detected',
                 'severity': 'info',
                 'description': 'No evidence of IIS was found.',
+                'recommendation': 'If IIS is used, ensure it is properly secured.',
                 'module': self.module_name,
             })
             return result
@@ -75,26 +56,11 @@ class Scanner:
         # Check web.config exposure
         if self._check_web_config():
             result['web_config_exposed'] = True
-            self.findings.append({
+            result['findings'].append({
                 'title': 'web.config file is publicly accessible',
                 'severity': 'critical',
-                'description': (
-                    "The web.config file can be downloaded. This file may contain:\n"
-                    "- Database connection strings with credentials\n"
-                    "- Application settings and secrets\n"
-                    "- Authentication configuration\n"
-                    "- Machine keys for encryption"
-                ),
-                'recommendation': (
-                    "Add to web.config:\n"
-                    "<security>\n"
-                    "    <requestFiltering>\n"
-                    "        <hiddenSegments>\n"
-                    "            <add segment=\"web.config\" />\n"
-                    "        </hiddenSegments>\n"
-                    "    </requestFiltering>\n"
-                    "</security>"
-                ),
+                'description': 'The web.config file can be downloaded, revealing sensitive configuration.',
+                'recommendation': 'Block access to web.config via IIS request filtering.',
                 'module': self.module_name,
                 'cwe_id': 'CWE-538',
                 'cvss_score': 9.5,
@@ -103,45 +69,14 @@ class Scanner:
         # Check trace.axd
         if self._check_trace_axd():
             result['trace_axd_exposed'] = True
-            self.findings.append({
+            result['findings'].append({
                 'title': 'ASP.NET tracing is enabled (trace.axd)',
                 'severity': 'high',
-                'description': (
-                    "Trace.axd exposes detailed request information including:\n"
-                    "- Session IDs and cookies\n"
-                    "- Server variables\n"
-                    "- Request data and parameters\n"
-                    "- Application state"
-                ),
-                'recommendation': (
-                    "Disable tracing in web.config:\n"
-                    "<trace enabled=\"false\" />"
-                ),
+                'description': 'Trace.axd exposes detailed request information.',
+                'recommendation': 'Disable tracing in web.config: <trace enabled="false" />',
                 'module': self.module_name,
                 'cwe_id': 'CWE-200',
                 'cvss_score': 7.5,
-            })
-        
-        # Check for Exchange Server
-        exchange_result = self._check_exchange()
-        if exchange_result:
-            result['exchange_detected'] = True
-            self.findings.append({
-                'title': 'Microsoft Exchange Server detected',
-                'severity': 'high',
-                'description': (
-                    "Exchange Server endpoints detected. Exchange has been targeted "
-                    "by critical vulnerabilities (ProxyLogon, ProxyShell)."
-                ),
-                'recommendation': (
-                    "1. Ensure Exchange is fully patched\n"
-                    "2. Apply latest Cumulative Updates\n"
-                    "3. Use Exchange Health Checker\n"
-                    "4. Restrict external access to Exchange endpoints"
-                ),
-                'module': self.module_name,
-                'cwe_id': 'CWE-200',
-                'cvss_score': 8.0,
             })
         
         result['findings'] = self.findings
@@ -162,7 +97,6 @@ class Scanner:
             result['version'] = match.group(1)
             return result
         
-        # Check for IIS-specific paths
         for name, path in self.iis_paths.items():
             if name in ['start', 'welcome']:
                 check = self.browser.head(path)
@@ -170,7 +104,6 @@ class Scanner:
                     result['detected'] = True
                     return result
         
-        # Check for ASP.NET indicators
         asp_headers = ['X-AspNet-Version', 'X-AspNetMvc-Version']
         for header in asp_headers:
             if header in resp.headers:
@@ -192,15 +125,4 @@ class Scanner:
         resp = self.browser.get('/trace.axd')
         if resp and resp.status_code == 200:
             return 'Trace' in resp.text or 'trace' in resp.text.lower()
-        return False
-    
-    def _check_exchange(self) -> bool:
-        """Check for Exchange Server endpoints."""
-        exchange_paths = ['/owa/', '/ecp/', '/ews/', '/autodiscover/']
-        
-        for path in exchange_paths:
-            resp = self.browser.get(path)
-            if resp and resp.status_code in [200, 301, 302, 401]:
-                return True
-        
         return False
