@@ -1,28 +1,17 @@
 #!/usr/bin/env python3
 """
-Web Security Analyzer Pro v3.0 - Main Entry Point
-A comprehensive web application security scanner.
+Web Security Analyzer Pro v3.0 - Interactive CLI
+A comprehensive web application security scanner with interactive menu.
 
 Usage:
-    python main.py scan https://example.com
-    python main.py quick https://example.com
-    python main.py scan https://example.com --mode stealth
-    python main.py scan https://example.com --modules wordpress,php,xss
-    python main.py api --port 8000
-    python main.py update --all
-    python main.py report scan_results.json --format html pdf
-    python main.py version
-
-Author: Security Research Team
-License: GPLv3
-Version: 3.0.0
+    python main.py
 """
 
 import sys
 import os
 import yaml
-import click
 import asyncio
+import time
 from pathlib import Path
 from typing import Optional, List, Dict
 from datetime import datetime
@@ -35,14 +24,17 @@ try:
     from rich.console import Console
     from rich.table import Table
     from rich.panel import Panel
-    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
+    from rich.prompt import Prompt, Confirm, IntPrompt
     from rich.syntax import Syntax
     from rich import print as rprint
+    from rich.layout import Layout
+    from rich.live import Live
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
     print("⚠️  'rich' library not installed. Install with: pip install rich")
-    print("⚠️  Falling back to basic output mode.\n")
+    sys.exit(1)
 
 try:
     from loguru import logger
@@ -57,15 +49,15 @@ except ImportError:
 from core.scanner import SecurityScanner, ScanResult, Finding
 from core.evasion import EvasionConfig, ScanMode
 
-console = Console() if RICH_AVAILABLE else None
+console = Console()
 
 # Version info
 VERSION = "3.0.0"
 BUILD_DATE = "2026-05-14"
-AUTHOR = "Security Research Team"
 
 # Banner
 BANNER = f"""
+[bold cyan]
 ╔══════════════════════════════════════════════════════════════════════╗
 ║                                                                      ║
 ║   ██╗    ██╗███████╗██████╗     ███████╗ ██████╗ █████╗ ███╗   ██╗   ║
@@ -75,537 +67,634 @@ BANNER = f"""
 ║   ╚███╔███╔╝███████╗██████╔╝    ███████║╚██████╗██║  ██║██║ ╚████║   ║
 ║    ╚══╝╚══╝ ╚══════╝╚═════╝     ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝   ║
 ║                                                                      ║
-║              Web Security Analyzer Pro v{VERSION:<44}║
+║              Web Security Analyzer Pro v{VERSION}                    ║
 ║              Comprehensive Security Analysis Tool                   ║
-║              Build: {BUILD_DATE:<46}║
 ╚══════════════════════════════════════════════════════════════════════╝
+[/bold cyan]
 """
 
+# Module categories with their modules
+MODULE_CATEGORIES = {
+    "🔍 CMS & Platforms": [
+        ("1", "wordpress", "WordPress Security Scanner", "WordPress detection, version, plugins, themes, users, backups"),
+        ("2", "joomla", "Joomla Security Scanner", "Joomla detection and vulnerability assessment"),
+        ("3", "drupal", "Drupal Security Scanner", "Drupal detection and security analysis"),
+    ],
+    "🌐 Web Servers": [
+        ("4", "apache", "Apache HTTP Server", "Apache version, server-status, server-info, misconfigurations"),
+        ("5", "nginx", "Nginx Web Server", "Nginx version, stub_status, configuration issues"),
+        ("6", "litespeed", "LiteSpeed Web Server", "LiteSpeed detection, admin interface, cache plugin"),
+        ("7", "iis", "Microsoft IIS", "IIS version, web.config, trace.axd, Exchange detection"),
+        ("8", "tomcat", "Apache Tomcat", "Tomcat manager, default credentials, examples"),
+    ],
+    "🐘 PHP Security": [
+        ("9", "php_version", "PHP Version Detection", "PHP version enumeration and vulnerability matching"),
+        ("10", "php_config", "PHP Configuration", "php.ini settings, phpinfo detection, session security"),
+        ("11", "php_functions", "Dangerous PHP Functions", "Detection of exec, system, eval and other dangerous functions"),
+        ("12", "php_info", "PHP Information Disclosure", "Error logs, config files, composer, .env exposure"),
+    ],
+    "🗄️ Database Security": [
+        ("13", "mysql", "MySQL Security", "MySQL port scanning, error disclosure, phpMyAdmin detection"),
+        ("14", "postgresql", "PostgreSQL Security", "PostgreSQL port scanning, authentication check"),
+        ("15", "redis", "Redis Security", "Redis unauthorized access, dangerous commands"),
+        ("16", "mongodb", "MongoDB Security", "MongoDB unauthorized access, version disclosure"),
+        ("17", "elasticsearch", "Elasticsearch Security", "ES indices enumeration, authentication check"),
+    ],
+    "🖥️ Control Panels": [
+        ("18", "cpanel", "cPanel/WHM Security", "cPanel ports, WHM access, version disclosure"),
+        ("19", "directadmin", "DirectAdmin Security", "DirectAdmin port, interface access, version check"),
+        ("20", "plesk", "Plesk Security", "Plesk ports, API exposure, backup detection"),
+        ("21", "virtualmin", "Virtualmin/Webmin", "Webmin detection, unauthenticated access, default creds"),
+    ],
+    "🛡️ Vulnerability Scanners": [
+        ("22", "xss", "Cross-Site Scripting (XSS)", "Reflected, stored, and DOM-based XSS detection"),
+        ("23", "sqli", "SQL Injection (SQLi)", "Error-based, boolean, time-based, and UNION SQLi"),
+        ("24", "lfi", "Local File Inclusion (LFI)", "Path traversal and local file inclusion detection"),
+        ("25", "rfi", "Remote File Inclusion (RFI)", "Remote file inclusion vulnerability detection"),
+        ("26", "xxe", "XML External Entity (XXE)", "XXE injection in XML parsers"),
+        ("27", "ssti", "Server-Side Template Injection", "Template injection in various engines"),
+        ("28", "csrf", "Cross-Site Request Forgery", "CSRF token validation and protection analysis"),
+        ("29", "command_injection", "Command Injection", "OS command injection vulnerability detection"),
+        ("30", "file_upload", "Unrestricted File Upload", "File upload vulnerability testing"),
+        ("31", "deserialization", "Insecure Deserialization", "PHP, Python, Java, .NET deserialization"),
+        ("32", "ssrf", "Server-Side Request Forgery", "SSRF to internal services and cloud metadata"),
+    ],
+    "🔒 SSL/TLS Security": [
+        ("33", "ssl", "SSL/TLS Certificate", "Certificate validation, expiry, self-signed detection"),
+        ("34", "ssl_protocols", "SSL/TLS Protocols", "Supported protocol versions and vulnerabilities"),
+        ("35", "ssl_ciphers", "SSL/TLS Ciphers", "Cipher suite analysis and weak cipher detection"),
+    ],
+    "📋 HTTP Headers": [
+        ("36", "headers", "Security Headers", "HSTS, CSP, X-Frame-Options, and other security headers"),
+        ("37", "info_disclosure", "Information Disclosure", "Server, X-Powered-By, and technology headers"),
+    ],
+    "🔌 API Security": [
+        ("38", "graphql", "GraphQL Security", "GraphQL introspection, query depth, mutations"),
+        ("39", "rest_api", "REST API Security", "API endpoints, methods, CORS, authentication"),
+        ("40", "jwt", "JWT Token Analysis", "JWT algorithm, weak secrets, sensitive data in payload"),
+    ],
+}
 
-# ============================================================================
-# Helper Functions
-# ============================================================================
 
 def load_config(config_path: str = "config.yaml") -> dict:
-    """
-    Load configuration from YAML file.
-    
-    Args:
-        config_path: Path to configuration file
-    
-    Returns:
-        Configuration dictionary
-    """
+    """Load configuration from YAML file."""
     default_config = {
-        'scan_mode': {
-            'default': 'stealth',
-            'max_requests_per_second': 1.0,
-            'timeout': 30,
-            'retry_count': 3,
-        },
-        'evasion': {
-            'rotate_user_agent': True,
-            'random_delay': True,
-            'min_delay': 0.5,
-            'max_delay': 3.0,
-            'jitter': True,
-        },
-        'proxy': {
-            'enabled': False,
-            'tor_enabled': False,
-        },
-        'reporting': {
-            'formats': ['html'],
-            'output_directory': 'reports/output',
-            'include_remediation': True,
-        },
-        'logging': {
-            'level': 'INFO',
-            'file': 'logs/scanner.log',
-        },
+        'scan_mode': {'default': 'stealth', 'max_requests_per_second': 1.0, 'timeout': 30},
+        'evasion': {'rotate_user_agent': True, 'random_delay': True, 'jitter': True},
+        'proxy': {'enabled': False, 'tor_enabled': False},
+        'reporting': {'formats': ['html'], 'output_directory': 'reports/output', 'include_remediation': True},
+        'logging': {'level': 'INFO', 'file': 'logs/scanner.log'},
     }
     
     if not os.path.exists(config_path):
-        logger.warning(f"Config file not found: {config_path}")
-        logger.info("Using default configuration")
-        # Create default config
-        try:
-            with open(config_path, 'w', encoding='utf-8') as f:
-                yaml.dump(default_config, f, default_flow_style=False)
-            logger.info(f"Default config created: {config_path}")
-        except Exception as e:
-            logger.error(f"Could not create default config: {e}")
+        with open(config_path, 'w', encoding='utf-8') as f:
+            yaml.dump(default_config, f, default_flow_style=False)
         return default_config
     
-    try:
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        logger.info(f"Configuration loaded from {config_path}")
-        return config
-    except yaml.YAMLError as e:
-        logger.error(f"Error parsing config file: {e}")
-        return default_config
+    with open(config_path, 'r', encoding='utf-8') as f:
+        return yaml.safe_load(f)
 
 
 def setup_logging(config: dict):
-    """Configure logging based on settings."""
+    """Configure logging."""
     if not LOGURU_AVAILABLE:
         return
     
     log_config = config.get('logging', {})
     logger.remove()
-    
-    # Console logging
     logger.add(
         sys.stderr,
-        level=log_config.get('level', 'INFO'),
-        format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+        level="WARNING",  # Only show warnings and errors in console
+        format="<red>{time:HH:mm:ss}</red> | <level>{level: <8}</level> | <level>{message}</level>",
         colorize=True
     )
     
-    # File logging
     log_file = log_config.get('file', 'logs/scanner.log')
     if log_file:
         os.makedirs(os.path.dirname(log_file), exist_ok=True)
-        logger.add(
-            log_file,
-            level="DEBUG",
-            format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} - {message}",
-            rotation="10 MB",
-            retention=5
-        )
+        logger.add(log_file, level="DEBUG", rotation="10 MB", retention=5)
+
+
+def clear_screen():
+    """Clear the terminal screen."""
+    os.system('cls' if os.name == 'nt' else 'clear')
 
 
 def print_banner():
     """Print the application banner."""
-    if RICH_AVAILABLE:
-        console.print(BANNER, style="cyan")
-    else:
-        print(BANNER)
+    clear_screen()
+    console.print(BANNER)
 
 
-def print_scan_header(target_url: str, mode: str, modules: Optional[List[str]] = None):
-    """Print scan start header."""
-    if RICH_AVAILABLE:
-        console.print(f"\n[bold cyan]🎯 Target:[/bold cyan] {target_url}")
-        console.print(f"[bold cyan]⚙️  Mode:[/bold cyan] {mode}")
-        console.print(f"[bold cyan]🕐 Time:[/bold cyan] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        if modules:
-            console.print(f"[bold cyan]📦 Modules:[/bold cyan] {', '.join(modules[:10])}")
-            if len(modules) > 10:
-                console.print(f"          ... and {len(modules) - 10} more")
-        console.print()
-    else:
-        print(f"\n🎯 Target: {target_url}")
-        print(f"⚙️  Mode: {mode}")
-        print(f"🕐 Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        if modules:
-            print(f"📦 Modules: {', '.join(modules[:10])}")
-        print()
-
-
-def print_scan_results(results: ScanResult):
-    """Print scan results summary."""
-    stats = results.statistics
+def get_target_url() -> str:
+    """Get target URL from user with validation."""
+    console.print("\n[bold yellow]📋 STEP 1: Enter Target URL[/bold yellow]")
+    console.print("[dim]──────────────────────────────────────────────────────────────[/dim]\n")
     
-    if RICH_AVAILABLE:
-        console.print("\n")
-        console.print(Panel.fit(
-            "[bold white]📊 SCAN RESULTS[/bold white]",
-            border_style="cyan"
-        ))
+    while True:
+        url = Prompt.ask(
+            "[bold cyan]🔗 Enter the target URL to scan[/bold cyan]",
+            default="https://example.com"
+        ).strip()
         
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("Severity", style="dim", width=12)
-        table.add_column("Count", justify="right", width=8)
-        table.add_column("Status", justify="center", width=8)
+        if not url:
+            console.print("[red]❌ URL cannot be empty![/red]")
+            continue
         
-        severity_data = [
-            ('CRITICAL', 'red', stats.get('critical', 0)),
-            ('HIGH', 'orange1', stats.get('high', 0)),
-            ('MEDIUM', 'yellow', stats.get('medium', 0)),
-            ('LOW', 'green', stats.get('low', 0)),
-            ('INFO', 'blue', stats.get('info', 0)),
-        ]
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+            console.print(f"[yellow]⚠️  Added https:// prefix: {url}[/yellow]")
         
-        for severity, color, count in severity_data:
-            status = "⚠️" if count > 0 else "✅"
-            table.add_row(f"[{color}]{severity}[/{color}]", str(count), status)
+        # Basic URL validation
+        if '.' in url and len(url) > 10:
+            console.print(f"\n[green]✅ Target URL: {url}[/green]")
+            return url
         
-        table.add_section()
-        table.add_row("[bold]TOTAL[/bold]", f"[bold]{stats.get('total', 0)}[/bold]", "")
-        
-        console.print(table)
-        
-        # Print top findings
-        critical_high = [f for f in results.findings if f.severity.lower() in ['critical', 'high']]
-        if critical_high:
-            console.print("\n[bold red]🚨 TOP CRITICAL/HIGH FINDINGS:[/bold red]\n")
-            for i, finding in enumerate(critical_high[:5], 1):
-                color = 'red' if finding.severity.lower() == 'critical' else 'orange1'
-                console.print(f"  {i}. [{color}]{finding.severity.upper()}[/{color}] - {finding.title}")
-        
-        console.print(f"\n[dim]✅ Scan completed in {results.scan_duration:.1f} seconds[/dim]")
-        console.print(f"[dim]📦 {len(results.modules_run)} modules executed[/dim]")
-        console.print(f"[dim]🔍 {stats.get('total', 0)} total findings[/dim]")
-    else:
-        print(f"\n{'='*60}")
-        print("📊 SCAN RESULTS")
-        print(f"{'='*60}")
-        print(f"  CRITICAL: {stats.get('critical', 0)}")
-        print(f"  HIGH:     {stats.get('high', 0)}")
-        print(f"  MEDIUM:   {stats.get('medium', 0)}")
-        print(f"  LOW:      {stats.get('low', 0)}")
-        print(f"  INFO:     {stats.get('info', 0)}")
-        print(f"  {'─'*20}")
-        print(f"  TOTAL:    {stats.get('total', 0)}")
-        print(f"\n✅ Scan completed in {results.scan_duration:.1f} seconds")
+        console.print("[red]❌ Invalid URL format! Please enter a valid URL.[/red]")
 
 
-def generate_reports(results: ScanResult, config: dict, formats: tuple, output: Optional[str]):
-    """Generate scan reports."""
-    try:
-        from core.reporter import ReportGenerator
+def select_scan_mode() -> str:
+    """Let user select scan mode."""
+    console.print("\n[bold yellow]📋 STEP 2: Select Scan Mode[/bold yellow]")
+    console.print("[dim]──────────────────────────────────────────────────────────────[/dim]\n")
+    
+    modes = [
+        ("1", "stealth", "🥷 Stealth Mode", "Maximum evasion, 2-5s delays, user-agent rotation", "Recommended for sensitive sites"),
+        ("2", "normal", "⚖️ Normal Mode", "Balanced speed and evasion, 0.5-2s delays", "Good for most sites"),
+        ("3", "aggressive", "⚡ Aggressive Mode", "Maximum speed, minimal evasion, 0.1-0.5s delays", "Only for your own sites"),
+    ]
+    
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("#", width=4)
+    table.add_column("Mode", width=20)
+    table.add_column("Description", width=45)
+    table.add_column("Best For", width=30)
+    
+    for num, mode, name, desc, best in modes:
+        table.add_row(num, name, desc, best)
+    
+    console.print(table)
+    
+    while True:
+        choice = Prompt.ask("\n[bold cyan]Select mode[/bold cyan]", choices=["1", "2", "3"], default="1")
         
-        reporter = ReportGenerator(results, config)
-        formats_list = list(formats) if formats else ['html']
+        for num, mode, name, _, _ in modes:
+            if choice == num:
+                console.print(f"\n[green]✅ Selected: {name}[/green]")
+                return mode
+
+
+def show_basic_info(target_url: str, config: dict):
+    """Show basic information about the target before scanning."""
+    console.print("\n[bold yellow]📋 STEP 3: Target Analysis[/bold yellow]")
+    console.print("[dim]──────────────────────────────────────────────────────────────[/dim]\n")
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+    ) as progress:
+        task = progress.add_task("[cyan]Analyzing target...", total=None)
         
-        for fmt in formats_list:
-            report_path = reporter.generate(format=fmt, output_path=output)
-            if RICH_AVAILABLE:
-                console.print(f"[bold green]📄 Report generated:[/bold green] {report_path}")
+        try:
+            from core.browser import StealthBrowser
+            from core.evasion import EvasionConfig, ScanMode
+            
+            evasion_config = EvasionConfig(mode=ScanMode.STEALTH)
+            browser = StealthBrowser(target_url, evasion_config)
+            
+            # Get basic info
+            resp = browser.get('/')
+            progress.update(task, description="[cyan]Checking server headers...")
+            
+            info_table = Table(title="📊 Target Information", show_header=True)
+            info_table.add_column("Property", style="cyan", width=20)
+            info_table.add_column("Value", style="green", width=50)
+            
+            if resp:
+                server = resp.headers.get('Server', 'Not disclosed')
+                powered_by = resp.headers.get('X-Powered-By', 'Not disclosed')
+                content_type = resp.headers.get('Content-Type', 'Unknown')
+                status = resp.status_code
+                size = len(resp.content)
+                response_time = browser.stats.get('requests_successful', 0)
+                
+                info_table.add_row("URL", target_url)
+                info_table.add_row("Status Code", str(status))
+                info_table.add_row("Server", server)
+                info_table.add_row("Powered By", powered_by)
+                info_table.add_row("Content Type", content_type)
+                info_table.add_row("Page Size", f"{size:,} bytes")
+                info_table.add_row("HTTPS", "✅ Yes" if target_url.startswith('https') else "❌ No")
+                
+                # Quick CMS detection
+                if 'wp-content' in resp.text.lower() or 'wordpress' in resp.text.lower():
+                    info_table.add_row("CMS Detected", "🔍 WordPress (likely)")
+                elif 'joomla' in resp.text.lower():
+                    info_table.add_row("CMS Detected", "🔍 Joomla (likely)")
+                elif 'drupal' in resp.text.lower():
+                    info_table.add_row("CMS Detected", "🔍 Drupal (likely)")
+                
+                # Security headers quick check
+                security_headers = ['Strict-Transport-Security', 'Content-Security-Policy', 'X-Frame-Options']
+                missing = [h for h in security_headers if h not in resp.headers]
+                if missing:
+                    info_table.add_row("⚠️ Missing Headers", f"[yellow]{', '.join(missing)}[/yellow]")
+                else:
+                    info_table.add_row("Security Headers", "[green]✅ All basic headers present[/green]")
+            
+            console.print(info_table)
+            
+        except Exception as e:
+            console.print(f"[red]❌ Could not analyze target: {e}[/red]")
+
+
+def select_modules() -> List[str]:
+    """Interactive module selection menu."""
+    console.print("\n[bold yellow]📋 STEP 4: Select Security Modules[/bold yellow]")
+    console.print("[dim]──────────────────────────────────────────────────────────────[/dim]\n")
+    
+    all_modules = {}
+    for category, modules in MODULE_CATEGORIES.items():
+        console.print(f"\n[bold magenta]{category}[/bold magenta]")
+        console.print("[dim]" + "─" * 60 + "[/dim]")
+        
+        for num, name, title, desc in modules:
+            all_modules[num] = name
+            console.print(f"  [bold cyan]{num:>2}[/bold cyan]. [bold]{title}[/bold]")
+            console.print(f"      [dim]{desc}[/dim]")
+    
+    console.print("\n[bold yellow]Quick Options:[/bold yellow]")
+    console.print("  [bold cyan] 0[/bold cyan]. [bold green]ALL modules[/bold green] - Run all 40 modules")
+    console.print("  [bold cyan]41[/bold cyan]. [bold yellow]WordPress Suite[/bold yellow] - All WordPress modules (1)")
+    console.print("  [bold cyan]42[/bold cyan]. [bold yellow]Vulnerability Suite[/bold yellow] - All vulnerability scanners (22-32)")
+    console.print("  [bold cyan]43[/bold cyan]. [bold red]Top 10 Critical[/bold red] - Most important security checks")
+    
+    console.print("\n[dim]Enter module numbers separated by commas (e.g., 1,4,9,22,23)[/dim]")
+    
+    while True:
+        choice = Prompt.ask("[bold cyan]Select modules[/bold cyan]", default="0").strip()
+        
+        if choice == "0":
+            console.print("[green]✅ All 40 modules selected![/green]")
+            return list(all_modules.values())
+        
+        elif choice == "41":
+            console.print("[green]✅ WordPress Suite selected![/green]")
+            return ["wordpress", "wordpress_version", "wordpress_plugins", "wordpress_themes", 
+                    "wordpress_users", "wordpress_xmlrpc", "wordpress_backups", "wordpress_hardening"]
+        
+        elif choice == "42":
+            console.print("[green]✅ Vulnerability Suite selected![/green]")
+            return ["xss", "sqli", "lfi", "rfi", "xxe", "ssti", "csrf", 
+                    "command_injection", "file_upload", "deserialization", "ssrf"]
+        
+        elif choice == "43":
+            console.print("[green]✅ Top 10 Critical selected![/green]")
+            return ["wordpress", "php_version", "xss", "sqli", "ssl", "headers", 
+                    "cpanel", "mysql", "redis", "mongodb"]
+        
+        # Parse custom selection
+        selected = []
+        parts = [p.strip() for p in choice.split(',')]
+        invalid = []
+        
+        for part in parts:
+            if '-' in part:
+                # Range selection
+                try:
+                    start, end = part.split('-')
+                    for i in range(int(start), int(end) + 1):
+                        num_str = str(i)
+                        if num_str in all_modules:
+                            selected.append(all_modules[num_str])
+                        else:
+                            invalid.append(num_str)
+                except:
+                    invalid.append(part)
+            elif part in all_modules:
+                selected.append(all_modules[part])
             else:
-                print(f"📄 Report generated: {report_path}")
-    except ImportError:
-        logger.warning("Report generator not available")
-    except Exception as e:
-        logger.error(f"Report generation failed: {e}")
+                invalid.append(part)
+        
+        if invalid:
+            console.print(f"[red]❌ Invalid selections: {', '.join(invalid)}[/red]")
+            console.print("[yellow]Please try again.[/yellow]")
+            continue
+        
+        if selected:
+            console.print(f"[green]✅ {len(selected)} module(s) selected![/green]")
+            return selected
+        
+        console.print("[red]❌ No modules selected! Please try again.[/red]")
 
 
-# ============================================================================
-# CLI Commands
-# ============================================================================
-
-@click.group()
-@click.version_option(VERSION, prog_name="Web Security Analyzer Pro")
-@click.option('--config', '-c', default='config.yaml', help='Path to config file')
-@click.pass_context
-def cli(ctx, config):
-    """
-    Web Security Analyzer Pro - Comprehensive Security Analysis Tool
+async def run_scan(target_url: str, mode: str, modules: List[str], config: dict) -> ScanResult:
+    """Run the security scan with progress tracking."""
+    console.print("\n[bold yellow]📋 STEP 5: Running Security Scan[/bold yellow]")
+    console.print("[dim]──────────────────────────────────────────────────────────────[/dim]\n")
     
-    A powerful web application security scanner with 50+ security testing modules.
-    """
-    ctx.ensure_object(dict)
-    ctx.obj['config'] = load_config(config)
-    setup_logging(ctx.obj['config'])
-
-
-@cli.command()
-@click.argument('target_url')
-@click.option('--mode', '-m', type=click.Choice(['stealth', 'normal', 'aggressive']),
-              default='stealth', help='Scan mode (default: stealth)')
-@click.option('--modules', '-M', help='Comma-separated list of modules to run')
-@click.option('--output', '-o', help='Output file path (without extension)')
-@click.option('--format', '-f', 'output_format', multiple=True,
-              type=click.Choice(['html', 'pdf', 'json', 'markdown']),
-              help='Report format(s)')
-@click.option('--verbose', '-v', is_flag=True, help='Verbose output')
-@click.pass_context
-def scan(ctx, target_url: str, mode: str, modules: Optional[str],
-         output: Optional[str], output_format: tuple, verbose: bool):
-    """
-    Run a comprehensive security scan against a target URL.
-    
-    Example:
-        python main.py scan https://example.com
-        python main.py scan https://example.com --mode stealth
-        python main.py scan https://example.com --modules wordpress,php,xss
-        python main.py scan https://example.com --format html pdf
-    """
-    print_banner()
-    
-    # Validate URL
-    if not target_url.startswith(('http://', 'https://')):
-        target_url = 'https://' + target_url
-        logger.info(f"Added https:// prefix: {target_url}")
-    
-    # Parse modules
-    selected_modules = None
-    if modules:
-        selected_modules = [m.strip() for m in modules.split(',')]
-    
-    # Update config with CLI options
-    config = ctx.obj['config']
+    # Update config
     config['scan_mode']['default'] = mode
-    
-    if verbose:
-        config['logging']['level'] = 'DEBUG'
-        setup_logging(config)
-    
-    print_scan_header(target_url, mode, selected_modules)
     
     # Initialize scanner
     scanner = SecurityScanner(target_url, config)
     
-    # Run scan with progress bar
-    try:
-        if RICH_AVAILABLE:
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                console=console
-            ) as progress:
-                task = progress.add_task("[cyan]Scanning...", total=100)
-                results = asyncio.run(scanner.scan(selected_modules, progress, task))
-                progress.update(task, completed=100)
-        else:
-            print("Scanning... (install 'rich' for progress bar)")
-            results = asyncio.run(scanner.scan(selected_modules))
+    results = None
+    scan_logs = []
+    
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(bar_width=40),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
         
-        # Print results
-        print_scan_results(results)
+        task = progress.add_task("[cyan]Initializing scanner...", total=100)
         
-        # Generate reports if requested
-        if output_format or output:
-            generate_reports(results, config, output_format, output)
-        
-    except KeyboardInterrupt:
-        logger.warning("Scan interrupted by user")
-        print("\n⚠️  Scan interrupted by user")
-        sys.exit(0)
-    except Exception as e:
-        logger.error(f"Scan failed: {e}")
-        print(f"\n❌ Error: {e}")
-        if verbose:
-            import traceback
-            traceback.print_exc()
-        sys.exit(1)
+        try:
+            results = await scanner.scan(modules, progress, task)
+            progress.update(task, completed=100, description="[green]✅ Scan complete!")
+        except Exception as e:
+            progress.update(task, description=f"[red]❌ Scan failed: {e}")
+            raise
+    
+    return results
 
 
-@cli.command()
-@click.argument('target_url')
-@click.option('--modules', '-M', help='Comma-separated list of modules')
-@click.pass_context
-def quick(ctx, target_url: str, modules: Optional[str]):
-    """
-    Run a quick scan with minimal settings.
+def show_results(results: ScanResult):
+    """Display scan results in a beautiful format."""
+    console.print("\n[bold yellow]📋 STEP 6: Scan Results[/bold yellow]")
+    console.print("[dim]──────────────────────────────────────────────────────────────[/dim]\n")
     
-    Example:
-        python main.py quick https://example.com
-        python main.py quick https://example.com --modules wordpress,headers
-    """
-    print_banner()
+    stats = results.statistics
     
-    if not target_url.startswith(('http://', 'https://')):
-        target_url = 'https://' + target_url
-    
-    config = ctx.obj['config']
-    config['scan_mode']['default'] = 'normal'
-    
-    selected_modules = None
-    if modules:
-        selected_modules = [m.strip() for m in modules.split(',')]
-    
-    print_scan_header(target_url, 'quick', selected_modules)
-    
-    scanner = SecurityScanner(target_url, config)
-    
-    try:
-        print("⚡ Running quick scan...\n")
-        results = asyncio.run(scanner.scan(selected_modules))
-        print_scan_results(results)
-    except KeyboardInterrupt:
-        print("\n⚠️  Scan interrupted")
-        sys.exit(0)
-    except Exception as e:
-        logger.error(f"Quick scan failed: {e}")
-        print(f"\n❌ Error: {e}")
-        sys.exit(1)
-
-
-@cli.command()
-@click.option('--port', '-p', default=8000, help='API server port (default: 8000)')
-@click.option('--host', '-h', default='127.0.0.1', help='API server host (default: 127.0.0.1)')
-@click.pass_context
-def api(ctx, port: int, host: str):
-    """
-    Start the REST API server for remote scanning.
-    
-    Example:
-        python main.py api
-        python main.py api --port 8080
-        python main.py api --host 0.0.0.0 --port 8000
-    """
-    print_banner()
-    
-    try:
-        from core.api import APIServer
-    except ImportError:
-        print("❌ API server dependencies not installed.")
-        print("   Install with: pip install fastapi uvicorn")
-        sys.exit(1)
-    
-    config = ctx.obj['config']
-    
-    if RICH_AVAILABLE:
-        console.print(f"\n[bold cyan]🚀 Starting API Server...[/bold cyan]")
-        console.print(f"[bold green]📍 Host:[/bold green] {host}")
-        console.print(f"[bold green]🔌 Port:[/bold green] {port}")
-        console.print(f"[bold green]📚 Docs:[/bold green] http://{host}:{port}/docs")
-        console.print(f"[bold green]🔍 Redoc:[/bold green] http://{host}:{port}/redoc\n")
-    else:
-        print(f"\n🚀 Starting API Server...")
-        print(f"📍 Host: {host}")
-        print(f"🔌 Port: {port}")
-        print(f"📚 Docs: http://{host}:{port}/docs\n")
-    
-    server = APIServer(config)
-    server.run(host=host, port=port)
-
-
-@cli.command()
-@click.option('--db', is_flag=True, help='Update vulnerability database')
-@click.option('--signatures', is_flag=True, help='Update technology signatures')
-@click.option('--all', 'update_all', is_flag=True, help='Update everything')
-@click.pass_context
-def update(ctx, db: bool, signatures: bool, update_all: bool):
-    """
-    Update vulnerability database and technology signatures.
-    
-    Example:
-        python main.py update --db
-        python main.py update --all
-    """
-    print_banner()
-    
-    try:
-        from core.updater import DatabaseUpdater
-    except ImportError:
-        print("❌ Database updater not available.")
-        sys.exit(1)
-    
-    config = ctx.obj['config']
-    updater = DatabaseUpdater(config)
-    
-    if update_all:
-        db = True
-        signatures = True
-    
-    if not db and not signatures:
-        print("⚠️  Please specify what to update:")
-        print("   --db          Update vulnerability database")
-        print("   --signatures  Update technology signatures")
-        print("   --all         Update everything")
-        return
-    
-    if db:
-        print("\n📥 Updating vulnerability database...")
-        count = updater.update_vulnerability_database()
-        print(f"✅ Database updated: {count} vulnerabilities")
-    
-    if signatures:
-        print("\n📥 Updating technology signatures...")
-        count = updater.update_signatures()
-        print(f"✅ Signatures updated: {count} entries")
-    
-    print("\n✅ Update complete!")
-
-
-@cli.command()
-@click.argument('input_file')
-@click.option('--format', '-f', 'output_format', multiple=True,
-              type=click.Choice(['html', 'pdf', 'json', 'markdown']),
-              help='Output format(s)')
-@click.option('--output', '-o', help='Output file path (without extension)')
-@click.pass_context
-def report(ctx, input_file: str, output_format: tuple, output: Optional[str]):
-    """
-    Generate report from existing scan results.
-    
-    Example:
-        python main.py report scan_results.json
-        python main.py report scan_results.json --format html pdf
-    """
-    print_banner()
-    
-    if not os.path.exists(input_file):
-        print(f"❌ File not found: {input_file}")
-        sys.exit(1)
-    
-    try:
-        import json
-        with open(input_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        from core.reporter import ReportGenerator
-        
-        config = ctx.obj['config']
-        reporter = ReportGenerator(data, config)
-        
-        formats_list = list(output_format) if output_format else ['html']
-        
-        for fmt in formats_list:
-            report_path = reporter.generate(format=fmt, output_path=output)
-            print(f"📄 Report generated: {report_path}")
-        
-        print("\n✅ Report generation complete!")
-        
-    except Exception as e:
-        print(f"❌ Report generation failed: {e}")
-        sys.exit(1)
-
-
-@cli.command()
-def version():
-    """Display version information."""
-    print_banner()
-    print(f"  Version:    {VERSION}")
-    print(f"  Build Date: {BUILD_DATE}")
-    print(f"  Author:     {AUTHOR}")
-    print(f"  Python:     {sys.version}")
-    print(f"  Platform:   {sys.platform}")
-    print(f"  Rich:       {'✅ Available' if RICH_AVAILABLE else '❌ Not installed'}")
-    print(f"  Loguru:     {'✅ Available' if LOGURU_AVAILABLE else '❌ Not installed'}")
-    print()
-
-
-@cli.command()
-def modules():
-    """List all available scan modules."""
-    print_banner()
-    print("\n📦 Available Modules:\n")
-    
-    from core.scanner import SecurityScanner
-    
-    categories = {
-        'CMS': ['wordpress', 'wordpress_version', 'wordpress_plugins', 'wordpress_themes',
-                'wordpress_users', 'wordpress_xmlrpc', 'wordpress_backups', 'wordpress_hardening',
-                'joomla', 'drupal'],
-        'Web Servers': ['apache', 'nginx', 'litespeed', 'iis', 'tomcat'],
-        'PHP': ['php_version', 'php_config', 'php_functions', 'php_info'],
-        'Databases': ['mysql', 'postgresql', 'redis', 'mongodb', 'elasticsearch'],
-        'Control Panels': ['cpanel', 'directadmin', 'plesk', 'virtualmin'],
-        'Vulnerabilities': ['xss', 'sqli', 'lfi', 'rfi', 'xxe', 'ssti', 'csrf',
-                           'command_injection', 'file_upload', 'deserialization', 'ssrf'],
-        'SSL/TLS': ['ssl', 'ssl_protocols', 'ssl_ciphers'],
-        'Headers': ['headers', 'info_disclosure'],
-        'API Security': ['graphql', 'rest_api', 'jwt'],
+    # Summary panel
+    severity_colors = {
+        'critical': 'red', 'high': 'orange1', 'medium': 'yellow',
+        'low': 'green', 'info': 'blue'
     }
     
-    for category, module_list in categories.items():
-        print(f"  📁 {category}:")
-        for mod in module_list:
-            status = "✅" if mod in SecurityScanner.MODULE_MAP else "❌"
-            print(f"      {status} {mod}")
-        print()
+    summary_table = Table(title="📊 Security Scan Summary", show_header=True, header_style="bold")
+    summary_table.add_column("Severity", width=12)
+    summary_table.add_column("Count", justify="center", width=8)
+    summary_table.add_column("Status", justify="center", width=8)
+    summary_table.add_column("Bar", width=30)
+    
+    for severity in ['critical', 'high', 'medium', 'low', 'info']:
+        count = stats.get(severity, 0)
+        color = severity_colors.get(severity, 'white')
+        status = "⚠️" if count > 0 else "✅"
+        bar = "█" * min(count * 3, 30)
+        
+        summary_table.add_row(
+            f"[{color}]{severity.upper()}[/{color}]",
+            str(count),
+            status,
+            f"[{color}]{bar}[/{color}]"
+        )
+    
+    summary_table.add_section()
+    summary_table.add_row(
+        "[bold]TOTAL[/bold]",
+        f"[bold]{stats.get('total', 0)}[/bold]",
+        "",
+        ""
+    )
+    
+    console.print(summary_table)
+    
+    # Show findings by severity
+    if results.findings:
+        console.print("\n[bold]🔍 Detailed Findings:[/bold]\n")
+        
+        for severity in ['critical', 'high', 'medium', 'low', 'info']:
+            severity_findings = [f for f in results.findings if f.severity.lower() == severity]
+            
+            if severity_findings:
+                color = severity_colors.get(severity, 'white')
+                console.print(f"\n[bold {color}]━━━ {severity.upper()} ({len(severity_findings)}) ━━━[/bold {color}]")
+                
+                for i, finding in enumerate(severity_findings[:10], 1):
+                    console.print(f"\n  [{color}]{i}.[/] [bold]{finding.title}[/bold]")
+                    console.print(f"  [dim]Module: {finding.module}[/dim]")
+                    
+                    if finding.description:
+                        desc = finding.description[:200]
+                        console.print(f"  [dim]{desc}...[/dim]" if len(finding.description) > 200 else f"  [dim]{finding.description}[/dim]")
+                    
+                    if finding.cvss_score:
+                        console.print(f"  [yellow]CVSS: {finding.cvss_score}[/yellow]", end="")
+                    if finding.cve_id:
+                        console.print(f"  [red]{finding.cve_id}[/red]", end="")
+                    if finding.cvss_score or finding.cve_id:
+                        console.print()
+    
+    # Module execution summary
+    console.print(f"\n[dim]✅ Scan completed in {results.scan_duration:.1f} seconds[/dim]")
+    console.print(f"[dim]📦 {len(results.modules_run)} modules executed[/dim]")
 
 
-# ============================================================================
-# Main Entry Point
-# ============================================================================
+def save_report(results: ScanResult, config: dict):
+    """Ask user if they want to save the report."""
+    console.print("\n[bold yellow]📋 STEP 7: Save Report[/bold yellow]")
+    console.print("[dim]──────────────────────────────────────────────────────────────[/dim]\n")
+    
+    save = Confirm.ask("[bold cyan]💾 Do you want to save the scan report?[/bold cyan]", default=True)
+    
+    if not save:
+        console.print("[yellow]Report not saved.[/yellow]")
+        return
+    
+    # Select format
+    console.print("\n[bold]Available formats:[/bold]")
+    console.print("  1. [green]HTML[/green] - Interactive report with charts (Recommended)")
+    console.print("  2. [yellow]PDF[/yellow] - Printable report (requires wkhtmltopdf)")
+    console.print("  3. [cyan]JSON[/cyan] - Machine-readable format")
+    console.print("  4. [magenta]Markdown[/magenta] - Documentation format")
+    console.print("  5. [bold]ALL[/bold] - Generate all formats")
+    
+    format_choice = Prompt.ask("[bold cyan]Select format[/bold cyan]", choices=["1", "2", "3", "4", "5"], default="1")
+    
+    format_map = {"1": "html", "2": "pdf", "3": "json", "4": "markdown", "5": "all"}
+    selected_format = format_map[format_choice]
+    
+    # Output filename
+    default_name = f"scan_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    output_name = Prompt.ask("[bold cyan]Output filename (without extension)[/bold cyan]", default=default_name)
+    
+    try:
+        from core.reporter import ReportGenerator
+        reporter = ReportGenerator(results, config)
+        
+        formats_to_generate = ['html', 'json', 'markdown'] if selected_format == 'all' else [selected_format]
+        
+        # Remove PDF if 'all' is selected (to avoid errors)
+        if selected_format == 'all':
+            formats_to_generate = ['html', 'json', 'markdown']
+            console.print("[yellow]⚠️  PDF skipped (requires wkhtmltopdf). HTML, JSON, and Markdown will be generated.[/yellow]")
+        
+        console.print("\n[bold]Generating reports...[/bold]")
+        
+        for fmt in formats_to_generate:
+            try:
+                with Progress(SpinnerColumn(), TextColumn(f"[progress.description]Generating {fmt.upper()}..."), transient=True) as progress:
+                    task = progress.add_task("", total=None)
+                    report_path = reporter.generate(format=fmt, output_path=output_name)
+                    progress.update(task, completed=True)
+                
+                console.print(f"  [green]✅ {fmt.upper()}: {report_path}[/green]")
+            except Exception as fmt_error:
+                console.print(f"  [yellow]⚠️  {fmt.upper()}: Failed - {str(fmt_error)[:100]}[/yellow]")
+        
+        console.print(f"\n[bold green]✅ Report saved successfully![/bold green]")
+        console.print(f"[dim]📁 Location: reports/output/[/dim]")
+        
+    except Exception as e:
+        console.print(f"[red]❌ Failed to generate report: {e}[/red]")
+        console.print("[yellow]💡 Tip: Try HTML format which works on all platforms.[/yellow]")
+
+        
+    """Ask user if they want to save the report."""
+    console.print("\n[bold yellow]📋 STEP 7: Save Report[/bold yellow]")
+    console.print("[dim]──────────────────────────────────────────────────────────────[/dim]\n")
+    
+    save = Confirm.ask("[bold cyan]💾 Do you want to save the scan report?[/bold cyan]", default=True)
+    
+    if not save:
+        console.print("[yellow]Report not saved.[/yellow]")
+        return
+    
+    # Select format
+    console.print("\n[bold]Available formats:[/bold]")
+    console.print("  1. [green]HTML[/green] - Interactive report with charts")
+    console.print("  2. [yellow]PDF[/yellow] - Printable report")
+    console.print("  3. [cyan]JSON[/cyan] - Machine-readable format")
+    console.print("  4. [magenta]Markdown[/magenta] - Documentation format")
+    console.print("  5. [bold]ALL[/bold] - Generate all formats")
+    
+    format_choice = Prompt.ask("[bold cyan]Select format[/bold cyan]", choices=["1", "2", "3", "4", "5"], default="1")
+    
+    format_map = {"1": "html", "2": "pdf", "3": "json", "4": "markdown", "5": "all"}
+    selected_format = format_map[format_choice]
+    
+    # Output filename
+    default_name = f"scan_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    output_name = Prompt.ask("[bold cyan]Output filename (without extension)[/bold cyan]", default=default_name)
+    
+    try:
+        from core.reporter import ReportGenerator
+        reporter = ReportGenerator(results, config)
+        
+        formats_to_generate = ['html', 'pdf', 'json', 'markdown'] if selected_format == 'all' else [selected_format]
+        
+        console.print("\n[bold]Generating reports...[/bold]")
+        
+        for fmt in formats_to_generate:
+            with Progress(SpinnerColumn(), TextColumn(f"[progress.description]Generating {fmt.upper()}..."), transient=True) as progress:
+                task = progress.add_task("", total=None)
+                report_path = reporter.generate(format=fmt, output_path=output_name)
+                progress.update(task, completed=True)
+            
+            console.print(f"  [green]✅ {fmt.upper()}: {report_path}[/green]")
+        
+        console.print(f"\n[bold green]✅ Report saved successfully![/bold green]")
+        
+    except Exception as e:
+        console.print(f"[red]❌ Failed to generate report: {e}[/red]")
+
+
+def show_final_summary(results: ScanResult):
+    """Show final summary with next steps."""
+    console.print("\n[bold yellow]📋 Final Summary[/bold yellow]")
+    console.print("[dim]──────────────────────────────────────────────────────────────[/dim]\n")
+    
+    stats = results.statistics
+    
+    if stats.get('critical', 0) > 0 or stats.get('high', 0) > 0:
+        console.print(Panel(
+            "[bold red]🚨 CRITICAL/HIGH SEVERITY ISSUES FOUND![/bold red]\n\n"
+            "[bold]Immediate Actions Required:[/bold]\n"
+            "1. Review all critical and high findings\n"
+            "2. Patch vulnerable software immediately\n"
+            "3. Close exposed ports and services\n"
+            "4. Implement missing security headers\n"
+            "5. Run a follow-up scan to verify fixes\n\n"
+            "[dim]Consider hiring a security professional for detailed analysis.[/dim]",
+            title="⚠️ Action Required",
+            border_style="red"
+        ))
+    elif stats.get('medium', 0) > 0:
+        console.print(Panel(
+            "[bold yellow]⚠️ MEDIUM SEVERITY ISSUES FOUND[/bold yellow]\n\n"
+            "Review and address medium severity findings to improve security posture.",
+            title="📋 Recommendations",
+            border_style="yellow"
+        ))
+    else:
+        console.print(Panel(
+            "[bold green]✅ GOOD SECURITY POSTURE![/bold green]\n\n"
+            "No critical or high severity issues found.\n"
+            "Continue monitoring and regular scanning.",
+            title="✅ Status",
+            border_style="green"
+        ))
+    
+    console.print(f"\n[dim]Scan completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}[/dim]")
+    console.print(f"[dim]Tool version: {VERSION}[/dim]")
+
+
+async def main():
+    """Main interactive menu."""
+    try:
+        # Load config
+        config = load_config()
+        setup_logging(config)
+        
+        # Display banner
+        print_banner()
+        
+        # Welcome message
+        console.print("\n[bold green]Welcome to Web Security Analyzer Pro![/bold green]")
+        console.print("[dim]This tool will guide you through a comprehensive security assessment.[/dim]\n")
+        
+        # Step 1: Get target URL
+        target_url = get_target_url()
+        
+        # Step 2: Select scan mode
+        mode = select_scan_mode()
+        
+        # Step 3: Show basic info
+        show_basic_info(target_url, config)
+        
+        # Step 4: Select modules
+        modules = select_modules()
+        
+        # Step 5: Run scan
+        results = await run_scan(target_url, mode, modules, config)
+        
+        # Step 6: Show results
+        show_results(results)
+        
+        # Step 7: Save report
+        save_report(results, config)
+        
+        # Final summary
+        show_final_summary(results)
+        
+        console.print("\n[bold green]Thank you for using Web Security Analyzer Pro! 🛡️[/bold green]\n")
+        
+    except KeyboardInterrupt:
+        console.print("\n\n[yellow]⚠️ Scan interrupted by user.[/yellow]")
+        console.print("[dim]Partial results may not be saved.[/dim]\n")
+    except Exception as e:
+        console.print(f"\n[red]❌ An error occurred: {e}[/red]")
+        import traceback
+        console.print(f"[dim]{traceback.format_exc()}[/dim]")
+        sys.exit(1)
+
 
 if __name__ == '__main__':
     # Create necessary directories
@@ -613,5 +702,5 @@ if __name__ == '__main__':
     os.makedirs('reports/output', exist_ok=True)
     os.makedirs('database', exist_ok=True)
     
-    # Run CLI
-    cli(obj={})
+    # Run the interactive menu
+    asyncio.run(main())
