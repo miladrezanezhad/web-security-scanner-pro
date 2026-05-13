@@ -1,133 +1,107 @@
 """
-Web Security Analyzer Pro - Security Modules Package
+Web Security Scanner Pro - Modules Package
 Version: 3.0.0
 
-This package contains all security testing modules organized by category.
+This is the main modules package that contains all security testing modules
+organized by category.
 
 Module Categories:
-    cms/           - CMS-specific tests (WordPress, Joomla, Drupal)
-    webserver/     - Web server security tests
-    php/           - PHP version and configuration tests
-    database/      - Database security tests
-    control_panels/- Hosting control panel tests
-    vulnerabilities/- Generic vulnerability scanners (XSS, SQLi, etc.)
-    ssl_tls/       - SSL/TLS certificate analysis
-    headers/       - HTTP security headers checks
-    api_security/  - API security testing (GraphQL, REST, JWT)
+    cms/              - CMS-specific security tests (WordPress, Joomla, Drupal)
+    webserver/        - Web server security tests (Apache, Nginx, LiteSpeed, IIS, Tomcat)
+    php/              - PHP version, configuration, and security analysis
+    database/         - Database security tests (MySQL, PostgreSQL, Redis, MongoDB, Elasticsearch)
+    control_panels/   - Hosting control panel security tests (cPanel, DirectAdmin, Plesk, Virtualmin)
+    vulnerabilities/  - Generic vulnerability scanners (XSS, SQLi, LFI, RFI, XXE, SSTI, CSRF, etc.)
+    ssl_tls/          - SSL/TLS certificate and protocol analysis
+    headers/          - HTTP security headers and information disclosure analysis
+    api_security/     - API security testing (GraphQL, REST, JWT)
 
-Adding a New Module:
-    1. Create your module in the appropriate category directory
-    2. Implement the Scanner class with run() method
-    3. Register in core/scanner.py MODULE_MAP
+Total Modules: 50+
+
+Usage:
+    from modules.cms.wordpress.detector import Scanner as WPDetector
+    from modules.vulnerabilities.xss import Scanner as XSSScanner
+    from modules.webserver.apache import Scanner as ApacheScanner
+
+Adding a new module:
+    1. Create a new file in the appropriate category directory
+    2. Implement a Scanner class with __init__(browser, target_url, config) and run() method
+    3. Register the module in core/scanner.py MODULE_MAP
     4. Add configuration in config.yaml
+
+Module Interface:
+    class Scanner:
+        def __init__(self, browser, target_url: str, config: Dict):
+            ...
+        
+        def run(self) -> Dict:
+            '''
+            Returns:
+                {
+                    'module': str,
+                    'findings': [
+                        {
+                            'title': str,
+                            'severity': str,  # critical, high, medium, low, info
+                            'description': str,
+                            'recommendation': str,
+                            'module': str,
+                            'cwe_id': str (optional),
+                            'cvss_score': float (optional),
+                            'evidence': str (optional),
+                            'references': List[str] (optional),
+                        }
+                    ]
+                }
+            '''
 """
 
 __version__ = "3.0.0"
-
-# Module registry
-AVAILABLE_MODULES = {
-    # CMS
-    "wordpress": "modules.cms.wordpress.detector",
-    "joomla": "modules.cms.joomla.scanner",
-    "drupal": "modules.cms.drupal.scanner",
-    
-    # Web Servers
-    "apache": "modules.webserver.apache",
-    "nginx": "modules.webserver.nginx",
-    "litespeed": "modules.webserver.litespeed",
-    "iis": "modules.webserver.iis",
-    "tomcat": "modules.webserver.tomcat",
-    
-    # PHP
-    "php_version": "modules.php.version",
-    "php_config": "modules.php.configuration",
-    "php_functions": "modules.php.dangerous_functions",
-    "php_info": "modules.php.info_disclosure",
-    
-    # Databases
-    "mysql": "modules.database.mysql",
-    "postgresql": "modules.database.postgresql",
-    "redis": "modules.database.redis",
-    "mongodb": "modules.database.mongodb",
-    "elasticsearch": "modules.database.elasticsearch",
-    
-    # Control Panels
-    "cpanel": "modules.control_panels.cpanel",
-    "directadmin": "modules.control_panels.directadmin",
-    "plesk": "modules.control_panels.plesk",
-    "virtualmin": "modules.control_panels.virtualmin",
-    
-    # Vulnerabilities
-    "xss": "modules.vulnerabilities.xss",
-    "sqli": "modules.vulnerabilities.sqli",
-    "lfi": "modules.vulnerabilities.lfi",
-    "rfi": "modules.vulnerabilities.rfi",
-    "xxe": "modules.vulnerabilities.xxe",
-    "ssti": "modules.vulnerabilities.ssti",
-    "csrf": "modules.vulnerabilities.csrf",
-    "command_injection": "modules.vulnerabilities.command_injection",
-    "file_upload": "modules.vulnerabilities.file_upload",
-    "deserialization": "modules.vulnerabilities.deserialization",
-    "ssrf": "modules.vulnerabilities.ssrf",
-    
-    # SSL/TLS
-    "ssl_cert": "modules.ssl_tls.certificate",
-    "ssl_proto": "modules.ssl_tls.protocols",
-    "ssl_cipher": "modules.ssl_tls.ciphers",
-    
-    # Headers
-    "security_headers": "modules.headers.security_headers",
-    "info_disclosure": "modules.headers.information_disclosure",
-    
-    # API Security
-    "graphql": "modules.api_security.graphql",
-    "rest_api": "modules.api_security.rest_api",
-    "jwt": "modules.api_security.jwt",
-}
+__author__ = "Security Research Team"
+__all__ = [
+    'cms',
+    'webserver',
+    'php',
+    'database',
+    'control_panels',
+    'vulnerabilities',
+    'ssl_tls',
+    'headers',
+    'api_security',
+]
 
 
-def get_module_info(module_name: str) -> dict:
-    """
-    Get information about a module.
-    
-    Args:
-        module_name: Name of the module
-    
-    Returns:
-        Dict with module information
-    """
-    if module_name in AVAILABLE_MODULES:
-        return {
-            "name": module_name,
-            "path": AVAILABLE_MODULES[module_name],
-            "available": True
-        }
-    
-    return {
-        "name": module_name,
-        "available": False,
-        "error": f"Module '{module_name}' not found"
+def get_module_version() -> str:
+    """Get the modules package version."""
+    return __version__
+
+
+def list_categories() -> list:
+    """List all module categories."""
+    return [
+        'cms',
+        'webserver',
+        'php',
+        'database',
+        'control_panels',
+        'vulnerabilities',
+        'ssl_tls',
+        'headers',
+        'api_security',
+    ]
+
+
+def get_category_description(category: str) -> str:
+    """Get description of a module category."""
+    descriptions = {
+        'cms': 'Content Management System security scanners',
+        'webserver': 'Web server security analysis',
+        'php': 'PHP security testing and configuration analysis',
+        'database': 'Database security and exposure detection',
+        'control_panels': 'Hosting control panel security assessment',
+        'vulnerabilities': 'Generic web vulnerability scanners',
+        'ssl_tls': 'SSL/TLS certificate and protocol analysis',
+        'headers': 'HTTP security headers and information disclosure',
+        'api_security': 'API security testing (GraphQL, REST, JWT)',
     }
-
-
-def list_available_modules() -> list:
-    """
-    List all available modules.
-    
-    Returns:
-        List of module names
-    """
-    return list(AVAILABLE_MODULES.keys())
-
-
-def get_modules_by_category(category: str) -> list:
-    """
-    Get modules filtered by category.
-    
-    Args:
-        category: Category name (cms, webserver, php, etc.)
-    
-    Returns:
-        List of module names in the category
-    """
-    return [name for name, path in AVAILABLE_MODULES.items() if category in path]
+    return descriptions.get(category, 'Unknown category')
