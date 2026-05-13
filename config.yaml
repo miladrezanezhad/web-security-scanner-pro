@@ -1,0 +1,112 @@
+# ============================================================================
+# Web Security Analyzer Pro v3.0 Configuration
+# ============================================================================
+
+scanner:
+  name: "Web Security Analyzer Pro"
+  version: "3.0.0"
+  author: "Security Research Team"
+
+# Scan mode settings
+scan_mode:
+  default: stealth
+  max_requests_per_second: 1.0
+  max_concurrent_requests: 5
+  timeout: 30
+  retry_count: 3
+
+# Evasion & anti-detection settings
+evasion:
+  rotate_user_agent: true
+  random_delay: true
+  min_delay: 0.5
+  max_delay: 3.0
+  jitter: true
+
+# Proxy configuration
+proxy:
+  enabled: false
+  http_proxy: ""
+  https_proxy: ""
+  tor_enabled: false
+  tor_port: 9050
+
+# Vulnerability database
+database:
+  path: "database/vulnerabilities.db"
+  auto_update: true
+  update_interval: 86400
+
+# Module configuration
+modules:
+  cms:
+    wordpress: true
+    joomla: false
+    drupal: false
+  webserver:
+    apache: true
+    nginx: true
+    litespeed: true
+    iis: true
+    tomcat: false
+  php:
+    version_check: true
+    configuration: true
+    dangerous_functions: true
+    info_disclosure: true
+  database:
+    mysql: true
+    postgresql: false
+    redis: true
+    mongodb: true
+    elasticsearch: false
+  control_panels:
+    cpanel: true
+    directadmin: true
+    plesk: true
+    virtualmin: false
+  vulnerabilities:
+    xss: true
+    sqli: true
+    lfi: true
+    rfi: true
+    xxe: true
+    ssti: true
+    csrf: true
+    command_injection: true
+    file_upload: true
+    deserialization: false
+    ssrf: true
+  ssl_tls:
+    certificate_analysis: true
+    protocol_check: true
+    cipher_suite: true
+  headers:
+    security_headers: true
+    information_disclosure: true
+  api_security:
+    graphql: false
+    rest_api: false
+    jwt: false
+
+# Reporting settings
+reporting:
+  formats: ["html", "json"]
+  output_directory: "reports/output"
+  include_remediation: true
+  include_evidence: true
+
+# Alert thresholds
+alerts:
+  critical: true
+  high: true
+  medium: true
+  low: false
+  info: false
+
+# Logging
+logging:
+  level: "INFO"
+  file: "logs/scanner.log"
+  max_size: "10MB"
+  backup_count: 5
