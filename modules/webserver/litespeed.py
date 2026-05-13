@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 """
 LiteSpeed Web Server Security Scanner Module.
-Tests for common LiteSpeed security misconfigurations and vulnerabilities.
-
-References:
-    - LiteSpeed Security: https://www.litespeedtech.com/products/litespeed-web-server
-    - OWASP: https://owasp.org/www-project-web-security-testing-guide/
 """
 
 import re
@@ -28,7 +23,6 @@ class Scanner:
             'admin_ssl': ':8443/',
             'status': '/status/',
             'phpinfo': '/phpinfo.php',
-            'webadmin': '/webadmin/',
         }
     
     def run(self) -> Dict:
@@ -55,6 +49,7 @@ class Scanner:
                 'title': 'No LiteSpeed Web Server detected',
                 'severity': 'info',
                 'description': 'No evidence of LiteSpeed was found.',
+                'recommendation': 'If LiteSpeed is used, ensure it is properly secured.',
                 'module': self.module_name,
             })
             return result
@@ -62,7 +57,7 @@ class Scanner:
         # Check admin interface
         if self._check_admin_interface():
             result['admin_exposed'] = True
-            self.findings.append({
+            result['findings'].append({
                 'title': 'LiteSpeed WebAdmin interface is exposed',
                 'severity': 'critical',
                 'description': 'The LiteSpeed admin interface is accessible.',
@@ -74,7 +69,7 @@ class Scanner:
         
         # Check cache plugin
         if result['cache_plugin']:
-            self.findings.append({
+            result['findings'].append({
                 'title': 'LiteSpeed Cache plugin detected',
                 'severity': 'info',
                 'description': 'LiteSpeed Cache plugin is active.',
@@ -84,7 +79,7 @@ class Scanner:
         
         # Version disclosure
         if result['version']:
-            self.findings.append({
+            result['findings'].append({
                 'title': f"LiteSpeed version disclosed: {result['version']}",
                 'severity': 'low',
                 'description': f"LiteSpeed version {result['version']} is exposed.",
@@ -111,12 +106,10 @@ class Scanner:
             result['detected'] = True
             result['version'] = match.group(1)
         
-        # Check for LiteSpeed Cache plugin
         if 'x-litespeed-cache' in resp.headers:
             result['detected'] = True
             result['cache_plugin'] = True
         
-        # Check HTML for LiteSpeed indicators
         litespeed_indicators = ['litespeed', 'litespeed_cache', 'lscache']
         for indicator in litespeed_indicators:
             if indicator in resp.text.lower():
