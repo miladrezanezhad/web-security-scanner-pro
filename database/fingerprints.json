@@ -1,0 +1,320 @@
+{
+  "version": "3.0.0",
+  "last_updated": "2026-05-14",
+  "categories": {
+    "web_servers": {
+      "apache": {
+        "name": "Apache HTTP Server",
+        "headers": {
+          "Server": "Apache(?:/([\\d.]+))?"
+        },
+        "paths": ["/server-status", "/server-info", "/icons/"],
+        "files": [".htaccess", "httpd.conf"],
+        "confidence": "high"
+      },
+      "nginx": {
+        "name": "Nginx",
+        "headers": {
+          "Server": "nginx(?:/([\\d.]+))?"
+        },
+        "paths": ["/nginx-status", "/nginx_status"],
+        "confidence": "high"
+      },
+      "litespeed": {
+        "name": "LiteSpeed Web Server",
+        "headers": {
+          "Server": "LiteSpeed(?:/([\\d.]+))?",
+          "X-LiteSpeed-Cache": "hit|miss"
+        },
+        "paths": [":7080/", ":8088/"],
+        "confidence": "high"
+      },
+      "iis": {
+        "name": "Microsoft IIS",
+        "headers": {
+          "Server": "Microsoft-IIS(?:/([\\d.]+))?"
+        },
+        "paths": ["/iisstart.htm", "/trace.axd"],
+        "confidence": "high"
+      },
+      "tomcat": {
+        "name": "Apache Tomcat",
+        "headers": {
+          "Server": "Apache-Coyote(?:/([\\d.]+))?"
+        },
+        "paths": ["/manager/html", "/examples/"],
+        "confidence": "high"
+      }
+    },
+    "cms": {
+      "wordpress": {
+        "name": "WordPress",
+        "meta": {
+          "generator": "WordPress\\s+([\\d.]+)"
+        },
+        "paths": ["/wp-admin/", "/wp-content/", "/wp-login.php"],
+        "files": ["wp-config.php", "readme.html"],
+        "confidence": "high"
+      },
+      "joomla": {
+        "name": "Joomla",
+        "meta": {
+          "generator": "Joomla!\\s*([\\d.]+)"
+        },
+        "paths": ["/administrator/", "/components/", "/modules/"],
+        "confidence": "high"
+      },
+      "drupal": {
+        "name": "Drupal",
+        "meta": {
+          "generator": "Drupal\\s+([\\d.]+)"
+        },
+        "paths": ["/core/", "/modules/", "/themes/", "/sites/default/"],
+        "confidence": "high"
+      }
+    },
+    "languages": {
+      "php": {
+        "name": "PHP",
+        "headers": {
+          "X-Powered-By": "PHP(?:/([\\d.]+))?"
+        },
+        "paths": ["/phpinfo.php", "/info.php"],
+        "confidence": "high"
+      },
+      "aspnet": {
+        "name": "ASP.NET",
+        "headers": {
+          "X-Powered-By": "ASP\\.NET",
+          "X-AspNet-Version": "([\\d.]+)",
+          "X-AspNetMvc-Version": "([\\d.]+)"
+        },
+        "paths": ["/trace.axd", "/aspnet_client/"],
+        "confidence": "high"
+      },
+      "python": {
+        "name": "Python",
+        "headers": {
+          "Server": "Python(?:/([\\d.]+))?",
+          "X-Powered-By": "Python"
+        },
+        "paths": ["/admin/", "/__debug__/"],
+        "confidence": "medium"
+      },
+      "ruby": {
+        "name": "Ruby on Rails",
+        "headers": {
+          "Server": "WEBrick|Puma|Unicorn|Thin|Passenger",
+          "X-Powered-By": "Phusion Passenger"
+        },
+        "paths": ["/rails/", "/assets/application"],
+        "confidence": "medium"
+      },
+      "nodejs": {
+        "name": "Node.js",
+        "headers": {
+          "X-Powered-By": "Express|Koa|Hapi|Next\\.js|Nuxt"
+        },
+        "confidence": "medium"
+      }
+    },
+    "frameworks": {
+      "laravel": {
+        "name": "Laravel",
+        "headers": {
+          "Set-Cookie": "laravel_session"
+        },
+        "paths": ["/vendor/", "/storage/", "/.env"],
+        "confidence": "high"
+      },
+      "symfony": {
+        "name": "Symfony",
+        "headers": {
+          "Set-Cookie": "symfony",
+          "X-Debug-Token": "([a-f0-9]+)"
+        },
+        "paths": ["/_profiler/", "/app_dev.php"],
+        "confidence": "high"
+      },
+      "django": {
+        "name": "Django",
+        "headers": {
+          "Set-Cookie": "sessionid|csrftoken"
+        },
+        "paths": ["/admin/", "/static/admin/"],
+        "confidence": "medium"
+      },
+      "flask": {
+        "name": "Flask",
+        "headers": {
+          "Server": "Werkzeug(?:/([\\d.]+))?"
+        },
+        "paths": ["/console"],
+        "confidence": "medium"
+      },
+      "spring": {
+        "name": "Spring Boot",
+        "headers": {
+          "Set-Cookie": "JSESSIONID"
+        },
+        "paths": ["/actuator/", "/swagger-ui.html"],
+        "confidence": "high"
+      }
+    },
+    "javascript": {
+      "jquery": {
+        "name": "jQuery",
+        "patterns": ["jquery(?:-([\\d.]+))?\\.min\\.js"],
+        "confidence": "high"
+      },
+      "react": {
+        "name": "React",
+        "patterns": ["react(?:\\.dom)?(?:-([\\d.]+))?\\.min\\.js", "__REACT_DEVTOOLS_GLOBAL_HOOK__"],
+        "confidence": "high"
+      },
+      "vue": {
+        "name": "Vue.js",
+        "patterns": ["vue(?:-([\\d.]+))?\\.min\\.js", "__VUE_DEVTOOLS_GLOBAL_HOOK__"],
+        "confidence": "high"
+      },
+      "angular": {
+        "name": "Angular",
+        "patterns": ["angular(?:-([\\d.]+))?\\.min\\.js", "ng-version=\"([\\d.]+)\""],
+        "confidence": "high"
+      },
+      "bootstrap": {
+        "name": "Bootstrap",
+        "patterns": ["bootstrap(?:-([\\d.]+))?\\.min\\.css", "bootstrap(?:-([\\d.]+))?\\.min\\.js"],
+        "confidence": "high"
+      }
+    },
+    "cdn_waf": {
+      "cloudflare": {
+        "name": "Cloudflare",
+        "headers": {
+          "Server": "cloudflare",
+          "CF-Ray": "[a-f0-9]+",
+          "CF-Cache-Status": ".*"
+        },
+        "cookies": ["__cfduid", "cf_clearance", "__cf_bm"],
+        "confidence": "high"
+      },
+      "akamai": {
+        "name": "Akamai",
+        "headers": {
+          "X-Akamai-Transformed": ".*",
+          "Server": "AkamaiGHost"
+        },
+        "cookies": ["ak_bmsc"],
+        "confidence": "high"
+      },
+      "aws_cloudfront": {
+        "name": "AWS CloudFront",
+        "headers": {
+          "X-Amz-Cf-Id": ".*",
+          "X-Amz-Cf-Pop": ".*",
+          "Via": ".*\\.cloudfront\\.net"
+        },
+        "confidence": "high"
+      },
+      "sucuri": {
+        "name": "Sucuri",
+        "headers": {
+          "X-Sucuri-ID": ".*",
+          "Server": "Sucuri/Cloudproxy"
+        },
+        "confidence": "high"
+      },
+      "imperva": {
+        "name": "Imperva/Incapsula",
+        "headers": {
+          "X-Iinfo": ".*",
+          "X-CDN": "Incapsula"
+        },
+        "cookies": ["visid_incap_", "incap_ses_"],
+        "confidence": "high"
+      },
+      "f5": {
+        "name": "F5 BIG-IP",
+        "cookies": ["BIGipServer", "TS[0-9a-f]+", "F5"],
+        "confidence": "high"
+      },
+      "varnish": {
+        "name": "Varnish Cache",
+        "headers": {
+          "X-Varnish": "\\d+",
+          "Via": ".*varnish"
+        },
+        "confidence": "high"
+      },
+      "fastly": {
+        "name": "Fastly",
+        "headers": {
+          "X-Served-By": "cache-.*",
+          "X-Cache": "HIT|MISS",
+          "X-Cache-Hits": "\\d+",
+          "Fastly-Debug-Digest": ".*"
+        },
+        "confidence": "high"
+      }
+    },
+    "databases": {
+      "mysql": {
+        "name": "MySQL",
+        "ports": [3306],
+        "error_patterns": ["MySQL server", "mysql_", "mysqli_", "MySQLSyntaxErrorException"],
+        "confidence": "medium"
+      },
+      "postgresql": {
+        "name": "PostgreSQL",
+        "ports": [5432],
+        "error_patterns": ["PostgreSQL", "PG::", "psycopg2", "pg_query"],
+        "confidence": "medium"
+      },
+      "redis": {
+        "name": "Redis",
+        "ports": [6379],
+        "headers": {"Server": "redis"},
+        "confidence": "medium"
+      },
+      "mongodb": {
+        "name": "MongoDB",
+        "ports": [27017, 28017],
+        "error_patterns": ["MongoDB", "MongoError", "BSON"],
+        "confidence": "medium"
+      },
+      "elasticsearch": {
+        "name": "Elasticsearch",
+        "ports": [9200, 9300],
+        "response_patterns": ["cluster_name", "cluster_uuid", "tagline"],
+        "confidence": "high"
+      }
+    },
+    "control_panels": {
+      "cpanel": {
+        "name": "cPanel",
+        "ports": [2082, 2083, 2086, 2087, 2095, 2096],
+        "paths": ["/cpanel/", "/whm/", "/webmail/"],
+        "confidence": "high"
+      },
+      "directadmin": {
+        "name": "DirectAdmin",
+        "ports": [2222],
+        "paths": ["/CMD_LOGIN"],
+        "confidence": "high"
+      },
+      "plesk": {
+        "name": "Plesk",
+        "ports": [8443, 8880, 8447],
+        "paths": ["/login_up.php"],
+        "confidence": "high"
+      },
+      "virtualmin": {
+        "name": "Virtualmin/Webmin",
+        "ports": [10000, 20000],
+        "paths": ["/virtualmin/", "/webmin/"],
+        "confidence": "high"
+      }
+    }
+  }
+}
