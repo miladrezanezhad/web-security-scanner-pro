@@ -1,0 +1,28 @@
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs and Database
+*.log
+*.sql
+*.sqlite3
+
+# OS
+.DS_Store
+Thumbs.db
