@@ -1,459 +1,617 @@
 #!/usr/bin/env python3
 """
-Report generation module.
-Generates security reports in multiple formats: HTML, PDF, JSON, Markdown.
-
-Features:
-- Professional HTML reports with charts and styling
-- PDF reports using WeasyPrint
-- JSON exports for integration
-- Markdown reports for documentation
-- Customizable templates
-- Severity-based color coding
-- Remediation recommendations
+Report generator for Web Security Analyzer Pro.
+Fixed: File naming, multiple format generation, proper extensions.
 """
 
 import os
 import json
-import hashlib
-from typing import Dict, List, Optional, Any
 from datetime import datetime
+from typing import Dict, List, Optional
 from pathlib import Path
+from jinja2 import Template
 from loguru import logger
 
 
 class ReportGenerator:
-    """Generate security scan reports in multiple formats."""
+    """
+    Generate professional security scan reports.
     
-    # Severity colors
-    SEVERITY_COLORS = {
-        'critical': '#dc3545',  # Red
-        'high': '#fd7e14',      # Orange
-        'medium': '#ffc107',    # Yellow
-        'low': '#28a745',       # Green
-        'info': '#17a2b8'       # Blue
-    }
+    Fixed issues:
+    - Proper file extensions (.html, .pdf, .md, .json)
+    - Correct output directory handling
+    - Support for custom filenames
+    - Generate all formats simultaneously
+    """
     
-    SEVERITY_EMOJI = {
-        'critical': '🔴',
-        'high': '🟠',
-        'medium': '🟡',
-        'low': '🟢',
-        'info': '🔵'
-    }
-    
-    def __init__(self, scan_result: Any, config: Dict):
-        """
-        Initialize report generator.
-        
-        Args:
-            scan_result: ScanResult object or dict
-            config: Configuration dictionary
-        """
-        self.scan_result = scan_result
+    def __init__(self, scan_results, config: Dict):
+        self.results = scan_results
         self.config = config
         
-        # Convert to dict if needed
-        if hasattr(scan_result, 'to_dict'):
-            self.data = scan_result.to_dict()
-        else:
-            self.data = scan_result
+        # Get template directory
+        self.template_dir = Path(__file__).parent.parent / "reports" / "templates"
         
-        self.report_config = config.get('reporting', {})
-        self.output_dir = self.report_config.get('output_directory', 'reports/output')
-        os.makedirs(self.output_dir, exist_ok=True)
+        # Get output directory from config with fallback
+        output_setting = config.get('reporting', {}).get('output_directory', 'reports/output')
+        self.output_dir = Path(output_setting)
+        
+        # Create output directory if it doesn't exist
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        logger.info(f"Report output directory: {self.output_dir.absolute()}")
+        
+        # Load templates
+        self.html_template = self._load_template('report.html')
+        self.md_template = self._load_template('report.md')
+    
+    def _load_template(self, filename: str) -> Optional[Template]:
+        """Load Jinja2 template from file."""
+        template_path = self.template_dir / filename
+        
+        if not template_path.exists():
+            logger.error(f"Template not found: {template_path.absolute()}")
+            logger.info(f"Looking in: {template_path.absolute()}")
+            return None
+        
+        try:
+            with open(template_path, 'r', encoding='utf-8') as f:
+                return Template(f.read())
+        except Exception as e:
+            logger.error(f"Failed to load template {filename}: {e}")
+            return None
     
     def generate(
         self, 
         format: str = 'html', 
-        output_path: Optional[str] = None
+        output_path: Optional[str] = None,
+        filename: Optional[str] = None
     ) -> str:
         """
         Generate report in specified format.
         
         Args:
-            format: Output format (html, pdf, json, markdown)
-            output_path: Custom output path (optional)
+            format: 'html', 'pdf', 'markdown', or 'json'
+            output_path: Full path for output file
+            filename: Custom filename without extension (e.g., 'milad')
         
         Returns:
-            Path to generated report
+            Absolute path to generated report
+        
+        Examples:
+            # Auto-named
+            reporter.generate('html')
+            # => reports/output/scan_report_20240101_120000.html
+            
+            # Custom name
+            reporter.generate('html', filename='milad')
+            # => reports/output/milad.html
+            
+            # Full path
+            reporter.generate('html', output_path='/path/to/report.html')
         """
-        generators = {
-            'html': self._generate_html,
-            'pdf': self._generate_pdf,
-            'json': self._generate_json,
-            'markdown': self._generate_markdown,
-            'md': self._generate_markdown,
-        }
+        logger.info(f"Generating {format.upper()} report...")
         
-        generator = generators.get(format.lower())
-        if not generator:
-            raise ValueError(f"Unsupported format: {format}. Use: {list(generators.keys())}")
+        # Prepare template data
+        data = self._prepare_data()
         
-        return generator(output_path)
+        if format == 'json':
+            return self._generate_json(data, output_path, filename)
+        elif format == 'markdown' or format == 'md':
+            return self._generate_markdown(data, output_path, filename)
+        elif format == 'html':
+            return self._generate_html(data, output_path, filename)
+        elif format == 'pdf':
+            return self._generate_pdf(data, output_path, filename)
+        else:
+            raise ValueError(f"Unsupported format: {format}. Use: html, pdf, markdown, json")
     
-    def _generate_html(self, output_path: Optional[str] = None) -> str:
-        """Generate HTML report."""
-        if not output_path:
-            target = self.data.get('target_url', 'unknown').replace('https://', '').replace('/', '_')
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_path = os.path.join(self.output_dir, f"scan_report_{target}_{timestamp}.html")
+    def generate_all(
+        self, 
+        filename: Optional[str] = None
+    ) -> Dict[str, str]:
+        """
+        Generate reports in ALL formats at once.
         
-        html_content = self._build_html_report()
+        Args:
+            filename: Custom filename without extension
         
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(html_content)
+        Returns:
+            Dict mapping format to file path
+        """
+        logger.info("Generating reports in all formats...")
         
-        logger.info(f"HTML report generated: {output_path}")
-        return output_path
+        paths = {}
+        formats = ['html', 'pdf', 'markdown', 'json']
+        
+        for fmt in formats:
+            try:
+                path = self.generate(format=fmt, filename=filename)
+                paths[fmt] = path
+                logger.info(f"✓ {fmt.upper()}: {path}")
+            except Exception as e:
+                logger.error(f"✗ Failed to generate {fmt}: {e}")
+                paths[fmt] = None
+        
+        return paths
     
-    def _generate_pdf(self, output_path: Optional[str] = None) -> str:
-        """Generate PDF report."""
+    def _get_output_path(self, extension: str, output_path: Optional[str], filename: Optional[str]) -> Path:
+        """
+        Determine the correct output file path.
+        
+        Priority:
+        1. output_path (full path provided)
+        2. filename (custom name, placed in output_dir)
+        3. Auto-generated name with timestamp
+        """
+        # Priority 1: Full path provided
+        if output_path:
+            path = Path(output_path)
+            # Ensure it has the correct extension
+            if path.suffix != f'.{extension}':
+                path = path.with_suffix(f'.{extension}')
+            # Create parent directories if needed
+            path.parent.mkdir(parents=True, exist_ok=True)
+            return path
+        
+        # Priority 2: Custom filename
+        if filename:
+            # Remove any existing extension
+            clean_name = Path(filename).stem
+            return self.output_dir / f"{clean_name}.{extension}"
+        
+        # Priority 3: Auto-generated name
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        return self.output_dir / f"scan_report_{timestamp}.{extension}"
+    
+    def _save_file(self, content: str, path: Path) -> str:
+        """Save content to file and return absolute path."""
         try:
-            from weasyprint import HTML
+            # Ensure directory exists
+            path.parent.mkdir(parents=True, exist_ok=True)
             
-            if not output_path:
-                target = self.data.get('target_url', 'unknown').replace('https://', '').replace('/', '_')
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                output_path = os.path.join(self.output_dir, f"scan_report_{target}_{timestamp}.pdf")
+            # Write file
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(content)
             
-            html_content = self._build_html_report()
-            HTML(string=html_content).write_pdf(output_path)
+            abs_path = str(path.absolute())
+            logger.info(f"✅ Report saved: {abs_path}")
             
-            logger.info(f"PDF report generated: {output_path}")
-            return output_path
-        except ImportError:
-            logger.error("WeasyPrint not installed. Install with: pip install weasyprint")
-            # Fallback to HTML
-            return self._generate_html()
+            # Verify file was created
+            if path.exists():
+                file_size = path.stat().st_size
+                logger.info(f"   File size: {file_size} bytes")
+            else:
+                logger.error("   File was NOT created!")
+            
+            return abs_path
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save file {path}: {e}")
+            raise
     
-    def _generate_json(self, output_path: Optional[str] = None) -> str:
-        """Generate JSON report."""
-        if not output_path:
-            target = self.data.get('target_url', 'unknown').replace('https://', '').replace('/', '_')
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_path = os.path.join(self.output_dir, f"scan_report_{target}_{timestamp}.json")
+    # ========================================================================
+    # Format-specific generators
+    # ========================================================================
+    
+    def _generate_html(self, data: Dict, output_path: Optional[str], filename: Optional[str]) -> str:
+        """Generate HTML report."""
+        if not self.html_template:
+            raise ValueError("HTML template not loaded. Check reports/templates/report.html")
         
+        # Render template
+        html_content = self.html_template.render(**data)
+        
+        # Determine output path
+        file_path = self._get_output_path('html', output_path, filename)
+        
+        # Save file
+        return self._save_file(html_content, file_path)
+    
+    def _generate_markdown(self, data: Dict, output_path: Optional[str], filename: Optional[str]) -> str:
+        """Generate Markdown report."""
+        if not self.md_template:
+            raise ValueError("Markdown template not loaded. Check reports/templates/report.md")
+        
+        # Render template
+        md_content = self.md_template.render(**data)
+        
+        # Determine output path
+        file_path = self._get_output_path('md', output_path, filename)
+        
+        # Save file
+        return self._save_file(md_content, file_path)
+    
+    def _generate_json(self, data: Dict, output_path: Optional[str], filename: Optional[str]) -> str:
+        """Generate JSON report."""
+        # Prepare JSON-safe data
         json_data = {
             'report_metadata': {
-                'generator': 'Web Security Analyzer Pro v3.0',
-                'generated_at': datetime.now().isoformat(),
-                'target_url': self.data.get('target_url'),
-                'scan_time': self.data.get('scan_time'),
-                'modules_run': self.data.get('modules_run', []),
+                'report_id': data.get('report_id', ''),
+                'target_url': data.get('target_url', ''),
+                'scan_date': data.get('scan_date', ''),
+                'scan_mode': data.get('scan_mode', ''),
+                'scanner_version': data.get('scanner_version', ''),
             },
-            'statistics': self.data.get('statistics', {}),
-            'findings': self.data.get('findings', []),
-            'module_results': self.data.get('module_results', {}),
+            'statistics': {
+                'critical': data.get('critical_count', 0),
+                'high': data.get('high_count', 0),
+                'medium': data.get('medium_count', 0),
+                'low': data.get('low_count', 0),
+                'info': data.get('info_count', 0),
+                'total': data.get('total_count', 0),
+            },
+            'risk_assessment': {
+                'score': data.get('risk_score', 0),
+                'level': data.get('risk_level', ''),
+            },
+            'findings': self.results.get('findings', []),
+            'modules_executed': self.results.get('modules_run', []),
+            'module_results': self.results.get('module_results', {}),
         }
         
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(json_data, f, indent=2, ensure_ascii=False)
+        json_content = json.dumps(json_data, indent=2, ensure_ascii=False)
         
-        logger.info(f"JSON report generated: {output_path}")
-        return output_path
+        # Determine output path
+        file_path = self._get_output_path('json', output_path, filename)
+        
+        # Save file
+        return self._save_file(json_content, file_path)
     
-    def _generate_markdown(self, output_path: Optional[str] = None) -> str:
-        """Generate Markdown report."""
-        if not output_path:
-            target = self.data.get('target_url', 'unknown').replace('https://', '').replace('/', '_')
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            output_path = os.path.join(self.output_dir, f"scan_report_{target}_{timestamp}.md")
+    def _generate_pdf(self, data: Dict, output_path: Optional[str], filename: Optional[str]) -> str:
+        """Generate PDF report from HTML template."""
+        try:
+            import pdfkit
+        except ImportError:
+            logger.error("pdfkit not installed. Install with: pip install pdfkit")
+            logger.error("Also requires wkhtmltopdf: https://wkhtmltopdf.org/downloads.html")
+            
+            # Fallback: Try weasyprint
+            try:
+                from weasyprint import HTML
+                return self._generate_pdf_weasyprint(data, output_path, filename)
+            except ImportError:
+                raise ImportError(
+                    "PDF generation requires either:\n"
+                    "  1. pip install pdfkit + wkhtmltopdf\n"
+                    "  2. pip install weasyprint"
+                )
         
-        md_content = self._build_markdown_report()
+        # Generate HTML first
+        html_content = self.html_template.render(**data)
         
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(md_content)
+        # Save temporary HTML
+        temp_html = self.output_dir / "temp_for_pdf.html"
+        with open(temp_html, 'w', encoding='utf-8') as f:
+            f.write(html_content)
         
-        logger.info(f"Markdown report generated: {output_path}")
-        return output_path
+        # Determine output path
+        file_path = self._get_output_path('pdf', output_path, filename)
+        
+        # Convert to PDF
+        options = {
+            'page-size': 'A4',
+            'margin-top': '0.75in',
+            'margin-right': '0.75in',
+            'margin-bottom': '0.75in',
+            'margin-left': '0.75in',
+            'encoding': "UTF-8",
+            'no-outline': None,
+            'enable-local-file-access': None,
+        }
+        
+        try:
+            pdfkit.from_file(str(temp_html), str(file_path), options=options)
+            logger.info(f"✅ PDF saved: {file_path.absolute()}")
+        finally:
+            # Clean up temp file
+            if temp_html.exists():
+                temp_html.unlink()
+        
+        return str(file_path.absolute())
     
-    def _build_html_report(self) -> str:
-        """Build complete HTML report."""
-        stats = self.data.get('statistics', {})
-        findings = self.data.get('findings', [])
-        target_url = self.data.get('target_url', 'Unknown')
-        scan_time = self.data.get('scan_time', datetime.now().isoformat())
+    def _generate_pdf_weasyprint(self, data: Dict, output_path: Optional[str], filename: Optional[str]) -> str:
+        """Generate PDF using WeasyPrint as fallback."""
+        from weasyprint import HTML
         
-        # Sort findings by severity
+        # Generate HTML
+        html_content = self.html_template.render(**data)
+        
+        # Determine output path
+        file_path = self._get_output_path('pdf', output_path, filename)
+        
+        # Convert to PDF
+        HTML(string=html_content).write_pdf(str(file_path))
+        
+        logger.info(f"✅ PDF saved (WeasyPrint): {file_path.absolute()}")
+        return str(file_path.absolute())
+    
+    # ========================================================================
+    # Data preparation
+    # ========================================================================
+    
+    def _prepare_data(self) -> Dict:
+        """Prepare all data needed for report templates."""
+        findings = self.results.get('findings', [])
+        stats = self.results.get('statistics', {})
+        
+        # Count by severity
+        critical = stats.get('critical', 0)
+        high = stats.get('high', 0)
+        medium = stats.get('medium', 0)
+        low = stats.get('low', 0)
+        info = stats.get('info', 0)
+        total = stats.get('total', critical + high + medium + low + info)
+        
+        # Calculate percentages
+        if total > 0:
+            critical_percent = round(critical / total * 100, 1)
+            high_percent = round(high / total * 100, 1)
+            medium_percent = round(medium / total * 100, 1)
+            low_percent = round(low / total * 100, 1)
+            info_percent = round(info / total * 100, 1)
+        else:
+            critical_percent = high_percent = medium_percent = low_percent = info_percent = 0
+        
+        # Calculate risk score
+        risk_score = min(critical * 25 + high * 15 + medium * 5 + low * 2, 100)
+        
+        # Determine risk level
+        if risk_score >= 80:
+            risk_level = "CRITICAL RISK"
+            risk_description = "Immediate action required. Critical vulnerabilities detected."
+        elif risk_score >= 60:
+            risk_level = "HIGH RISK"
+            risk_description = "Significant vulnerabilities found. Action required within 48 hours."
+        elif risk_score >= 40:
+            risk_level = "MEDIUM RISK"
+            risk_description = "Moderate vulnerabilities detected. Action required within one week."
+        elif risk_score >= 20:
+            risk_level = "LOW RISK"
+            risk_description = "Minor issues found. Address within regular maintenance cycle."
+        else:
+            risk_level = "MINIMAL RISK"
+            risk_description = "No significant vulnerabilities detected. Good security posture."
+        
+        return {
+            'report_id': f"WSA-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+            'scan_date': self.results.get('scan_time', datetime.now().strftime('%Y-%m-%d %H:%M:%S')),
+            'scanner_version': '3.0.0',
+            'target_url': self.results.get('target_url', 'Unknown'),
+            'scan_duration': self._format_duration(self.results.get('duration', 0)),
+            'scan_mode': self.results.get('scan_mode', 'stealth'),
+            'modules_count': len(self.results.get('modules_run', [])),
+            'modules_list': ', '.join(self.results.get('modules_run', [])),
+            'total_count': total,
+            'critical_count': critical,
+            'high_count': high,
+            'medium_count': medium,
+            'low_count': low,
+            'info_count': info,
+            'critical_percent': critical_percent,
+            'high_percent': high_percent,
+            'medium_percent': medium_percent,
+            'low_percent': low_percent,
+            'info_percent': info_percent,
+            'critical_bar': '█' * min(int(critical_percent), 50),
+            'high_bar': '█' * min(int(high_percent), 50),
+            'medium_bar': '█' * min(int(medium_percent), 50),
+            'low_bar': '█' * min(int(low_percent), 50),
+            'info_bar': '█' * min(int(info_percent), 50),
+            'risk_score': risk_score,
+            'risk_level': risk_level,
+            'risk_description': risk_description,
+            'security_posture': self._generate_security_posture(risk_score),
+            'findings_html': self._generate_findings_html(findings),
+            'findings_md': self._generate_findings_md(findings),
+            'modules_table': self._generate_modules_table_html(),
+            'modules_table_md': self._generate_modules_table_md(),
+            'critical_recommendations': self._filter_recommendations(findings, 'critical'),
+            'high_recommendations': self._filter_recommendations(findings, 'high'),
+            'medium_recommendations': self._filter_recommendations(findings, 'medium'),
+            'low_recommendations': self._filter_recommendations(findings, 'low'),
+            'recommendations_list': self._get_all_recommendations(findings),
+            'module_stats_table': self._generate_module_stats(),
+            'vulnerability_type_table': self._generate_vulnerability_types(findings),
+            'timeout': self.results.get('timeout', 30),
+            'rps': self.results.get('rps', 1.0),
+            'year': datetime.now().year,
+            'owasp_status': '⚠️ Review Required' if total > 0 else '✅ Passed',
+            'owasp_notes': f'{total} potential OWASP Top 10 findings' if total > 0 else 'No OWASP issues found',
+            'ssl_status': '⚠️ Check Required',
+            'ssl_notes': 'SSL/TLS analysis recommended',
+            'headers_status': '⚠️ Check Required',
+            'headers_notes': 'Security headers analysis recommended',
+            'updates_status': '⚠️ Check Required' if total > 0 else '✅ Up to Date',
+            'updates_notes': 'Software update analysis completed',
+            'access_status': '⚠️ Review Required',
+            'access_notes': 'Access control testing recommended',
+            'scanner_ip': 'Automated Scanner',
+            'user_agent': 'Web Security Analyzer Pro/3.0',
+            'proxy_status': 'Disabled',
+            'reproduction_steps': 'Run scan with same configuration to reproduce findings.',
+            'resources_list': '- [OWASP Top 10](https://owasp.org/www-project-top-ten/)\n- [CVE Database](https://cve.mitre.org/)\n- [NVD](https://nvd.nist.gov/)',
+            'scan_limitations': 'Automated scanning may not detect all vulnerabilities. Manual penetration testing recommended.',
+        }
+    
+    def _generate_findings_html(self, findings: List[Dict]) -> str:
+        """Generate HTML for findings."""
+        if not findings:
+            return '<p style="color:#28a745;font-weight:600;">✅ No vulnerabilities found!</p>'
+        
         severity_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3, 'info': 4}
-        sorted_findings = sorted(
-            findings, 
-            key=lambda f: severity_order.get(f.get('severity', 'info'), 5)
-        )
+        sorted_findings = sorted(findings, key=lambda x: severity_order.get(x.get('severity', 'info'), 99))
         
-        # Build findings table rows
-        findings_rows = ""
+        html_parts = []
         for finding in sorted_findings:
             severity = finding.get('severity', 'info')
-            color = self.SEVERITY_COLORS.get(severity, '#6c757d')
-            emoji = self.SEVERITY_EMOJI.get(severity, '⚪')
+            title = finding.get('title', 'Untitled')
+            description = finding.get('description', '')
+            recommendation = finding.get('recommendation', '')
+            cve_id = finding.get('cve_id', '')
+            cvss_score = finding.get('cvss_score', '')
+            module = finding.get('module', 'Unknown')
             
-            findings_rows += f"""
-            <tr>
-                <td><span class="severity-badge" style="background-color: {color};">{emoji} {severity.upper()}</span></td>
-                <td><strong>{finding.get('title', 'Unknown')}</strong></td>
-                <td>{finding.get('module', 'N/A')}</td>
-                <td>{finding.get('cve_id', 'N/A')}</td>
-                <td>{finding.get('cvss_score', 'N/A')}</td>
-            </tr>
-            <tr class="finding-details">
-                <td colspan="5">
-                    <p><strong>Description:</strong> {finding.get('description', 'No description')}</p>
-                    <p><strong>Recommendation:</strong> {finding.get('recommendation', 'No recommendation')}</p>
-                    {self._format_evidence(finding.get('evidence'))}
-                </td>
-            </tr>
-            """
-        
-        # Build detailed findings sections
-        detailed_sections = ""
-        for finding in sorted_findings:
-            severity = finding.get('severity', 'info')
-            color = self.SEVERITY_COLORS.get(severity, '#6c757d')
+            cve_badge = f' <span class="cve-badge">{cve_id}</span>' if cve_id else ''
+            cvss_badge = f' <span class="cvss-badge">CVSS: {cvss_score}</span>' if cvss_score else ''
             
-            detailed_sections += f"""
-            <div class="finding-card" style="border-left: 4px solid {color};">
-                <h3>{finding.get('title', 'Unknown Finding')}</h3>
-                <div class="finding-meta">
-                    <span class="badge" style="background-color: {color};">{severity.upper()}</span>
-                    <span>Module: {finding.get('module', 'N/A')}</span>
-                    <span>CVE: {finding.get('cve_id', 'N/A')}</span>
-                    <span>CVSS: {finding.get('cvss_score', 'N/A')}</span>
+            html_parts.append(f'''
+            <div class="finding {severity}">
+                <div class="finding-header">
+                    <span class="severity-badge {severity}">{severity.upper()}</span>
+                    <span class="finding-title">{title}{cve_badge}{cvss_badge}</span>
+                    <span class="module-tag">{module}</span>
                 </div>
                 <div class="finding-body">
                     <h4>Description</h4>
-                    <p>{finding.get('description', 'No description available.')}</p>
-                    
-                    <h4>Remediation</h4>
-                    <div class="remediation-box">
-                        {finding.get('recommendation', 'No recommendation available.')}
-                    </div>
-                    
-                    {self._format_references(finding.get('references', []))}
-                    
-                    {self._format_evidence(finding.get('evidence'))}
+                    <p>{description}</p>
+                    <h4>Recommendation</h4>
+                    <div class="recommendation-box">{recommendation}</div>
                 </div>
             </div>
-            """
+            ''')
         
-        # Build HTML
-        html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Security Scan Report - {target_url}</title>
-    <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
-        body {{ font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background: #f5f5f5; }}
-        .container {{ max-width: 1200px; margin: 0 auto; padding: 20px; }}
-        .header {{ background: linear-gradient(135deg, #1a237e, #0d47a1); color: white; padding: 40px 20px; text-align: center; border-radius: 8px; margin-bottom: 30px; }}
-        .header h1 {{ font-size: 2.5em; margin-bottom: 10px; }}
-        .header .subtitle {{ font-size: 1.2em; opacity: 0.9; }}
-        .summary-cards {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }}
-        .summary-card {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }}
-        .summary-card.critical {{ border-top: 4px solid {self.SEVERITY_COLORS['critical']}; }}
-        .summary-card.high {{ border-top: 4px solid {self.SEVERITY_COLORS['high']}; }}
-        .summary-card.medium {{ border-top: 4px solid {self.SEVERITY_COLORS['medium']}; }}
-        .summary-card.low {{ border-top: 4px solid {self.SEVERITY_COLORS['low']}; }}
-        .summary-card .count {{ font-size: 3em; font-weight: bold; }}
-        .summary-card .label {{ color: #666; }}
-        .section {{ background: white; padding: 30px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        .section h2 {{ margin-bottom: 20px; color: #1a237e; border-bottom: 2px solid #e0e0e0; padding-bottom: 10px; }}
-        table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; }}
-        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }}
-        th {{ background: #f5f5f5; font-weight: 600; }}
-        .severity-badge {{ color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; }}
-        .finding-card {{ padding: 20px; margin-bottom: 20px; background: #fafafa; border-radius: 8px; }}
-        .finding-meta {{ margin: 10px 0; }}
-        .finding-meta span {{ margin-right: 15px; }}
-        .badge {{ color: white; padding: 3px 8px; border-radius: 3px; font-size: 0.8em; }}
-        .remediation-box {{ background: #e8f5e9; border-left: 4px solid #4caf50; padding: 15px; margin: 15px 0; border-radius: 4px; }}
-        .evidence-box {{ background: #263238; color: #aed581; padding: 15px; margin: 15px 0; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 0.9em; overflow-x: auto; }}
-        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 0.9em; }}
-        .footer a {{ color: #1a237e; }}
-        @media print {{ body {{ background: white; }} .section {{ box-shadow: none; break-inside: avoid; }} }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <h1>🔒 Security Scan Report</h1>
-            <p class="subtitle">Web Security Analyzer Pro v3.0</p>
-            <p><strong>Target:</strong> {target_url}</p>
-            <p><strong>Scan Date:</strong> {scan_time}</p>
-        </div>
-        
-        <!-- Summary Cards -->
-        <div class="summary-cards">
-            <div class="summary-card critical">
-                <div class="count">{stats.get('critical', 0)}</div>
-                <div class="label">Critical</div>
-            </div>
-            <div class="summary-card high">
-                <div class="count">{stats.get('high', 0)}</div>
-                <div class="label">High</div>
-            </div>
-            <div class="summary-card medium">
-                <div class="count">{stats.get('medium', 0)}</div>
-                <div class="label">Medium</div>
-            </div>
-            <div class="summary-card low">
-                <div class="count">{stats.get('low', 0)}</div>
-                <div class="label">Low</div>
-            </div>
-        </div>
-        
-        <!-- Findings Overview -->
-        <div class="section">
-            <h2>📊 Findings Overview</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Severity</th>
-                        <th>Title</th>
-                        <th>Module</th>
-                        <th>CVE</th>
-                        <th>CVSS</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {findings_rows}
-                </tbody>
-            </table>
-        </div>
-        
-        <!-- Detailed Findings -->
-        <div class="section">
-            <h2>🔍 Detailed Findings</h2>
-            {detailed_sections if detailed_sections else '<p>No findings to display. ✅</p>'}
-        </div>
-        
-        <!-- Modules Run -->
-        <div class="section">
-            <h2>⚙️ Modules Executed</h2>
-            <p>{', '.join(self.data.get('modules_run', []))}</p>
-        </div>
-        
-        <!-- Footer -->
-        <div class="footer">
-            <p>Generated by <strong>Web Security Analyzer Pro v3.0</strong></p>
-            <p>Report generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>
-            <p><em>This report is confidential and intended for authorized personnel only.</em></p>
-        </div>
-    </div>
-</body>
-</html>
-"""
-        return html
+        return '\n'.join(html_parts)
     
-    def _build_markdown_report(self) -> str:
-        """Build Markdown report."""
-        stats = self.data.get('statistics', {})
-        findings = self.data.get('findings', [])
-        target_url = self.data.get('target_url', 'Unknown')
-        scan_time = self.data.get('scan_time', datetime.now().isoformat())
+    def _generate_findings_md(self, findings: List[Dict]) -> str:
+        """Generate Markdown for findings."""
+        if not findings:
+            return '✅ **No vulnerabilities found!**\n'
         
         severity_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3, 'info': 4}
-        sorted_findings = sorted(
-            findings,
-            key=lambda f: severity_order.get(f.get('severity', 'info'), 5)
-        )
+        sorted_findings = sorted(findings, key=lambda x: severity_order.get(x.get('severity', 'info'), 99))
         
-        md = f"""# 🔒 Security Scan Report
+        emoji_map = {'critical': '🔴', 'high': '🟠', 'medium': '🟡', 'low': '🟢', 'info': '🔵'}
+        
+        md_parts = []
+        for finding in sorted_findings:
+            severity = finding.get('severity', 'info')
+            emoji = emoji_map.get(severity, '⚪')
+            title = finding.get('title', 'Untitled')
+            description = finding.get('description', '')
+            recommendation = finding.get('recommendation', '')
+            
+            md_parts.append(f'''
+### {emoji} [{severity.upper()}] {title}
 
-**Target:** {target_url}  
-**Scan Date:** {scan_time}  
-**Generator:** Web Security Analyzer Pro v3.0
+**Description:** {description}
+
+**Recommendation:** {recommendation}
+
+**Module:** {finding.get('module', 'Unknown')}
 
 ---
-
-## 📊 Executive Summary
-
-| Severity | Count |
-|----------|-------|
-| 🔴 Critical | {stats.get('critical', 0)} |
-| 🟠 High | {stats.get('high', 0)} |
-| 🟡 Medium | {stats.get('medium', 0)} |
-| 🟢 Low | {stats.get('low', 0)} |
-| 🔵 Info | {stats.get('info', 0)} |
-| **Total** | **{stats.get('total', 0)}** |
-
----
-
-## 🔍 Detailed Findings
-
-"""
+''')
         
-        if not sorted_findings:
-            md += "✅ **No vulnerabilities found.**\n\n"
+        return '\n'.join(md_parts)
+    
+    def _generate_modules_table_html(self) -> str:
+        """Generate HTML for modules table."""
+        modules = self.results.get('module_results', {})
+        if not modules:
+            return '<tr><td colspan="3">No modules executed</td></tr>'
+        
+        rows = []
+        for name, result in modules.items():
+            findings_count = len(result.get('findings', []))
+            status = '✅' if findings_count == 0 else f'⚠️ {findings_count} issues'
+            rows.append(f'<tr><td>{name}</td><td>{status}</td><td>{findings_count}</td></tr>')
+        
+        return '\n'.join(rows)
+    
+    def _generate_modules_table_md(self) -> str:
+        """Generate Markdown for modules table."""
+        modules = self.results.get('module_results', {})
+        if not modules:
+            return '| - | - | - |'
+        
+        rows = ['| Module | Status | Findings |', '|--------|--------|----------|']
+        for name, result in modules.items():
+            findings_count = len(result.get('findings', []))
+            status = '✅ Clean' if findings_count == 0 else f'⚠️ {findings_count} issues'
+            rows.append(f'| {name} | {status} | {findings_count} |')
+        
+        return '\n'.join(rows)
+    
+    def _generate_module_stats(self) -> str:
+        """Generate module statistics table."""
+        modules = self.results.get('module_results', {})
+        if not modules:
+            return '| - | - | - | - | - | - |'
+        
+        rows = ['| Module | Critical | High | Medium | Low | Total |', 
+                '|--------|----------|------|--------|-----|-------|']
+        
+        for name, result in modules.items():
+            findings = result.get('findings', [])
+            c = sum(1 for f in findings if f.get('severity') == 'critical')
+            h = sum(1 for f in findings if f.get('severity') == 'high')
+            m = sum(1 for f in findings if f.get('severity') == 'medium')
+            l = sum(1 for f in findings if f.get('severity') == 'low')
+            rows.append(f'| {name} | {c} | {h} | {m} | {l} | {len(findings)} |')
+        
+        return '\n'.join(rows)
+    
+    def _generate_vulnerability_types(self, findings: List[Dict]) -> str:
+        """Generate vulnerability type statistics."""
+        if not findings:
+            return '| - | - | - |'
+        
+        type_counts = {}
+        for f in findings:
+            vuln_type = f.get('module', 'Unknown')
+            type_counts[vuln_type] = type_counts.get(vuln_type, 0) + 1
+        
+        rows = ['| Type | Count |', '|------|-------|']
+        for vuln_type, count in sorted(type_counts.items(), key=lambda x: x[1], reverse=True):
+            rows.append(f'| {vuln_type} | {count} |')
+        
+        return '\n'.join(rows)
+    
+    def _filter_recommendations(self, findings: List[Dict], severity: str) -> str:
+        """Filter recommendations by severity."""
+        recs = []
+        for f in findings:
+            if f.get('severity') == severity:
+                rec = f.get('recommendation', '')
+                if rec and rec not in recs:
+                    recs.append(rec)
+        
+        if not recs:
+            return f"No {severity} severity findings. ✅"
+        
+        return '\n'.join(f"- {r}" for r in recs[:5])
+    
+    def _get_all_recommendations(self, findings: List[Dict]) -> str:
+        """Get all unique recommendations."""
+        recs = []
+        for f in findings:
+            rec = f.get('recommendation', '')
+            if rec and rec not in recs:
+                recs.append(rec)
+        
+        if not recs:
+            return '<li>No issues found - maintain current security practices</li>'
+        
+        return '\n'.join(f'<li>{r}</li>' for r in recs[:10])
+    
+    def _generate_security_posture(self, risk_score: int) -> str:
+        """Generate security posture assessment."""
+        if risk_score >= 80:
+            return "**CRITICAL** - Immediate remediation required. Severe vulnerabilities detected."
+        elif risk_score >= 60:
+            return "**POOR** - High-severity vulnerabilities require prompt attention."
+        elif risk_score >= 40:
+            return "**FAIR** - Several medium-severity issues should be addressed."
+        elif risk_score >= 20:
+            return "**GOOD** - Minor issues detected. Maintain regular security practices."
         else:
-            for i, finding in enumerate(sorted_findings, 1):
-                severity = finding.get('severity', 'info')
-                emoji = self.SEVERITY_EMOJI.get(severity, '⚪')
-                
-                md += f"""### {i}. {emoji} {finding.get('title', 'Unknown')}
-
-**Severity:** {severity.upper()}  
-**Module:** {finding.get('module', 'N/A')}  
-**CVE:** {finding.get('cve_id', 'N/A')}  
-**CVSS Score:** {finding.get('cvss_score', 'N/A')}
-
-**Description:**  
-{finding.get('description', 'No description available.')}
-
-**Remediation:**  
-{finding.get('recommendation', 'No recommendation available.')}
-
-"""
-                
-                if finding.get('evidence'):
-                    md += f"""**Evidence:** 
-                    {finding.get('evidence')}
- 
-"""
-                
-                if finding.get('references'):
-                    md += "**References:**\n"
-                    for ref in finding.get('references', []):
-                        md += f"- {ref}\n"
-                    md += "\n"
-                
-                md += "---\n\n"
-        
-        md += f"""## ⚙️ Modules Executed
-
-{', '.join(self.data.get('modules_run', []))}
-
----
-
-*Report generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*  
-*Web Security Analyzer Pro v3.0*
-"""
-        
-        return md
+            return "**EXCELLENT** - No significant vulnerabilities detected."
     
-    def _format_evidence(self, evidence: Optional[str]) -> str:
-        """Format evidence for HTML display."""
-        if not evidence:
-            return ""
-        return f"""
-        <div class="evidence-box">
-            <strong>Evidence:</strong>
-            <pre>{evidence}</pre>
-        </div>
-        """
-    
-    def _format_references(self, references: List[str]) -> str:
-        """Format references for HTML display."""
-        if not references:
-            return ""
-        
-        refs_html = "<h4>References</h4><ul>"
-        for ref in references:
-            refs_html += f'<li><a href="{ref}" target="_blank">{ref}</a></li>'
-        refs_html += "</ul>"
-        
-        return refs_html
+    def _format_duration(self, seconds: float) -> str:
+        """Format duration in human-readable format."""
+        if seconds < 60:
+            return f"{seconds:.1f} seconds"
+        elif seconds < 3600:
+            return f"{seconds / 60:.1f} minutes"
+        else:
+            return f"{seconds / 3600:.1f} hours"
