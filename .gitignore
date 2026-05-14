@@ -24,6 +24,7 @@ __pycache__/
 *.log
 *.sql
 *.sqlite3
+/Database/*.db
 
 # OS
 .DS_Store
@@ -33,3 +34,4 @@ Thumbs.db
 log/
 Logs/
 reports/output/
+tests/test_output/

@@ -40,42 +40,8 @@ class Scanner:
         # Generate unique marker for XSS detection
         self.marker = self._generate_marker()
         
-        # XSS payloads by injection context
-        self.payloads = {
-            'html_context': [
-                '<script>console.log("' + self.marker + '")</script>',
-                '<img src=x onerror=console.log("' + self.marker + '")>',
-                '<svg onload=console.log("' + self.marker + '")>',
-                '<body onload=console.log("' + self.marker + '")>',
-                '<input onfocus=console.log("' + self.marker + '") autofocus>',
-                '<details open ontoggle=console.log("' + self.marker + '")>',
-                '<select onfocus=console.log("' + self.marker + '") autofocus>',
-                '<marquee onstart=console.log("' + self.marker + '")>',
-            ],
-            'attribute_context': [
-                '" onmouseover="console.log(\'' + self.marker + '\')" x="',
-                '" onclick="console.log(\'' + self.marker + '\')" x="',
-                '" autofocus onfocus="console.log(\'' + self.marker + '\')" x="',
-                '" onload="console.log(\'' + self.marker + '\')" x="',
-            ],
-            'javascript_context': [
-                '";console.log("' + self.marker + '");//',
-                "</script><script>console.log('" + self.marker + "')</script>",
-                '\\';console.log("' + self.marker + '");//',
-            ],
-            'url_context': [
-                'javascript:console.log("' + self.marker + '")',
-                'data:text/html,<script>console.log("' + self.marker + '")</script>',
-            ],
-        }
-        
-        # WAF bypass payloads
-        self.bypass_payloads = [
-            '<scr<script>ipt>console.log("' + self.marker + '")</scr</script>ipt>',
-            '<img src=x onerror="&#99;onsole.log(\'' + self.marker + '\')">',
-            '<details open ontoggle="console.log(\'' + self.marker + '\')">',
-            '<math><mtext><table><mglyph><style><!--</style><img src=x onerror=console.log("' + self.marker + '")>',
-        ]
+        # XSS payloads by injection context - FIXED: No string concatenation in list
+        self.payloads = self._build_payloads()
         
         # Common XSS-vulnerable parameter names
         self.xss_params = [
@@ -90,6 +56,46 @@ class Scanner:
         """Generate a unique random marker for XSS detection."""
         chars = string.ascii_letters + string.digits
         return ''.join(random.choices(chars, k=length))
+    
+    def _build_payloads(self) -> Dict[str, List[str]]:
+        """
+        Build XSS payloads with the unique marker.
+        This method avoids string concatenation issues in list definitions.
+        """
+        m = self.marker  # Short alias
+        
+        return {
+            'html_context': [
+                '<script>console.log("' + m + '")</script>',
+                '<img src=x onerror=console.log("' + m + '")>',
+                '<svg onload=console.log("' + m + '")>',
+                '<body onload=console.log("' + m + '")>',
+                '<input onfocus=console.log("' + m + '") autofocus>',
+                '<details open ontoggle=console.log("' + m + '")>',
+                '<select onfocus=console.log("' + m + '") autofocus>',
+                '<marquee onstart=console.log("' + m + '")>',
+            ],
+            'attribute_context': [
+                '" onmouseover="console.log(\'' + m + '\')" x="',
+                '" onclick="console.log(\'' + m + '\')" x="',
+                '" autofocus onfocus="console.log(\'' + m + '\')" x="',
+                '" onload="console.log(\'' + m + '\')" x="',
+            ],
+            'javascript_context': [
+                '";console.log("' + m + '");//',
+                '</script><script>console.log(\'' + m + '\')</script>',
+                '\\\';console.log("' + m + '");//',
+            ],
+            'url_context': [
+                'javascript:console.log("' + m + '")',
+                'data:text/html,<script>console.log("' + m + '")</script>',
+            ],
+            'waf_bypass': [
+                '<scr<script>ipt>console.log("' + m + '")</scr</script>ipt>',
+                '<img src=x onerror="&#99;onsole.log(\'' + m + '\')">',
+                '<details open ontoggle="console.log(\'' + m + '\')">',
+            ],
+        }
     
     def run(self) -> Dict:
         """
@@ -173,15 +179,15 @@ class Scanner:
             
             self.findings.append({
                 'title': (
-                    f"Cross-Site Scripting (XSS) in '{vuln['parameter']}' parameter "
-                    f"({vuln.get('context', 'unknown').replace('_', ' ')})"
+                    "Cross-Site Scripting (XSS) in '" + vuln['parameter'] + "' parameter "
+                    "(" + vuln.get('context', 'unknown').replace('_', ' ') + ")"
                 ),
                 'severity': severity,
                 'description': (
-                    f"A Cross-Site Scripting (XSS) vulnerability was detected in the "
-                    f"'{vuln['parameter']}' parameter at {vuln['url']}. "
-                    f"Context: {vuln.get('context', 'unknown').replace('_', ' ')}. "
-                    f"Method: {vuln.get('method', 'GET')}. "
+                    "A Cross-Site Scripting (XSS) vulnerability was detected in the "
+                    "'" + vuln['parameter'] + "' parameter at " + vuln['url'] + ". "
+                    "Context: " + vuln.get('context', 'unknown').replace('_', ' ') + ". "
+                    "Method: " + vuln.get('method', 'GET') + ". "
                     "XSS allows attackers to inject malicious scripts that execute in "
                     "victims' browsers, potentially stealing cookies, session tokens, "
                     "or performing actions on behalf of the user."
@@ -203,10 +209,10 @@ class Scanner:
                 'cwe_id': 'CWE-79',
                 'cvss_score': cvss,
                 'evidence': (
-                    f"URL: {vuln['url']}\n"
-                    f"Parameter: {vuln['parameter']}\n"
-                    f"Context: {vuln.get('context', 'unknown')}\n"
-                    f"Method: {vuln.get('method', 'GET')}"
+                    "URL: " + vuln['url'] + "\n"
+                    "Parameter: " + vuln['parameter'] + "\n"
+                    "Context: " + vuln.get('context', 'unknown') + "\n"
+                    "Method: " + vuln.get('method', 'GET')
                 ),
                 'references': [
                     'https://owasp.org/www-community/attacks/xss/',
@@ -218,10 +224,10 @@ class Scanner:
         result['findings'] = self.findings
         
         logger.info(
-            f"{self.module_name} complete. "
-            f"Forms: {len(forms)}, "
-            f"Parameters: {len(result['parameters_tested'])}, "
-            f"Vulnerabilities: {len(unique_vulns)}"
+            self.module_name + " complete. "
+            "Forms: " + str(len(forms)) + ", "
+            "Parameters: " + str(len(result['parameters_tested'])) + ", "
+            "Vulnerabilities: " + str(len(unique_vulns))
         )
         return result
     
@@ -235,7 +241,6 @@ class Scanner:
         forms = []
         visited_urls = set()
         
-        # Check main page and common paths
         paths_to_check = [
             '/', '/index.php', '/search.php', '/contact.php',
             '/login.php', '/register.php', '/profile.php',
@@ -257,13 +262,11 @@ class Scanner:
                 action = form.get('action', '')
                 method = form.get('method', 'get').lower()
                 
-                # Build full URL
                 if action:
                     form_url = urljoin(self.target_url, action)
                 else:
                     form_url = urljoin(self.target_url, path)
                 
-                # Extract form inputs
                 inputs = []
                 for input_tag in form.find_all(['input', 'textarea', 'select']):
                     input_info = {
@@ -273,7 +276,6 @@ class Scanner:
                         'placeholder': input_tag.get('placeholder', ''),
                     }
                     
-                    # Skip submit buttons and hidden fields without names
                     if input_info['name'] or input_info['type'] in ['text', 'search', 'email', 'url']:
                         inputs.append(input_info)
                 
@@ -285,7 +287,7 @@ class Scanner:
                         'enctype': form.get('enctype', ''),
                     })
         
-        return forms[:15]  # Limit to 15 forms
+        return forms[:15]
     
     def _find_url_parameters(self) -> List:
         """
@@ -305,21 +307,19 @@ class Scanner:
         for a_tag in soup.find_all('a', href=True):
             href = a_tag['href']
             
-            # Skip non-HTTP links
             if href.startswith('#') or href.startswith('javascript:') or href.startswith('mailto:'):
                 continue
             
-            # Parse URL
             if '?' in href:
                 full_url = urljoin(self.target_url, href)
                 parsed = urlparse(full_url)
                 query_params = parse_qs(parsed.query, keep_blank_values=True)
                 
                 if query_params:
-                    base_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+                    base_url = parsed.scheme + "://" + parsed.netloc + parsed.path
                     url_params.append((base_url, query_params))
         
-        return url_params[:20]  # Limit to 20 URLs
+        return url_params[:20]
     
     def _test_form(self, form: Dict) -> List[Dict]:
         """
@@ -333,17 +333,17 @@ class Scanner:
         """
         vulnerabilities = []
         
-        # Test each input field
         for input_field in form['inputs']:
             if not input_field.get('name'):
                 continue
             
             param_name = input_field['name']
             
-            # Test each payload context
             for context, payloads in self.payloads.items():
-                for payload in payloads[:2]:  # Test first 2 payloads per context
-                    # Build form data
+                if context == 'waf_bypass':
+                    continue  # Skip WAF bypass in normal tests
+                
+                for payload in payloads[:2]:
                     form_data = {}
                     for inp in form['inputs']:
                         field_name = inp.get('name', '')
@@ -355,7 +355,6 @@ class Scanner:
                         else:
                             form_data[field_name] = inp.get('value', 'test')
                     
-                    # Send request
                     resp = None
                     if form['method'] == 'post':
                         resp = self.browser.post(form['action'], data=form_data)
@@ -370,7 +369,7 @@ class Scanner:
                             'method': form['method'].upper(),
                             'type': 'form_based',
                         })
-                        break  # Found vulnerability, move to next input
+                        break
         
         return vulnerabilities
     
@@ -388,7 +387,6 @@ class Scanner:
         """
         vulnerabilities = []
         
-        # Normalize params
         normalized_params = {}
         for k, v in params.items():
             if isinstance(v, list):
@@ -397,6 +395,9 @@ class Scanner:
                 normalized_params[k] = v
         
         for context, payloads in self.payloads.items():
+            if context == 'waf_bypass':
+                continue
+            
             for payload in payloads[:2]:
                 test_params = normalized_params.copy()
                 test_params[param_name] = payload
@@ -428,6 +429,9 @@ class Scanner:
         vulnerabilities = []
         
         for context, payloads in self.payloads.items():
+            if context == 'waf_bypass':
+                continue
+            
             for payload in payloads[:1]:
                 resp = self.browser.get('/', params={param_name: payload})
                 
@@ -457,7 +461,7 @@ class Scanner:
         if not response_text or not payload:
             return False
         
-        # Check for direct reflection (payload appears as-is)
+        # Check for direct reflection
         if payload in response_text:
             return True
         
@@ -466,25 +470,17 @@ class Scanner:
         if decoded_payload != payload and decoded_payload in response_text:
             return True
         
-        # Check for partially encoded reflection
-        # HTML encode the payload
-        encoded_payload = html.escape(payload)
-        if encoded_payload != payload:
-            # If the encoded version is NOT in the response but the raw is,
-            # it means it's being output without encoding
-            if payload in html.unescape(response_text):
-                # Check if it's actually encoded properly
-                soup = BeautifulSoup(response_text, 'html.parser')
-                body_text = soup.get_text()
-                script_tags = soup.find_all('script')
-                
-                # Check script contexts
-                for script in script_tags:
-                    if script.string and payload in script.string:
-                        return True
-                
-                # Check HTML contexts (not in script tags)
-                if payload in body_text:
-                    return True
+        # Check for reflection in script contexts
+        soup = BeautifulSoup(response_text, 'html.parser')
+        script_tags = soup.find_all('script')
+        
+        for script in script_tags:
+            if script.string and payload in script.string:
+                return True
+        
+        # Check HTML body text
+        body_text = soup.get_text()
+        if payload in body_text:
+            return True
         
         return False

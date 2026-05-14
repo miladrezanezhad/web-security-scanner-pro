@@ -2,6 +2,7 @@
 """
 SSL/TLS Protocol Version Analysis Module.
 Tests for supported and vulnerable SSL/TLS protocol versions.
+Compatible with Python 3.7+ including 3.11+.
 
 References:
     - OWASP: https://cheatsheetseries.owasp.org/cheatsheets/Transport_Layer_Protection_Cheat_Sheet.html
@@ -17,61 +18,6 @@ from loguru import logger
 
 class Scanner:
     """SSL/TLS Protocol version scanner."""
-    
-    # Protocol versions and their security status
-    PROTOCOLS = {
-        ssl.PROTOCOL_SSLv2: {
-            'name': 'SSLv2',
-            'secure': False,
-            'severity': 'critical',
-            'description': 'SSL 2.0 is completely insecure and has been deprecated since 2011 (RFC 6176)',
-        },
-        ssl.PROTOCOL_SSLv3: {
-            'name': 'SSLv3',
-            'secure': False,
-            'severity': 'critical',
-            'description': 'SSL 3.0 is vulnerable to POODLE attack and has been deprecated since 2015 (RFC 7568)',
-        },
-        ssl.PROTOCOL_TLSv1: {
-            'name': 'TLSv1.0',
-            'secure': False,
-            'severity': 'high',
-            'description': 'TLS 1.0 is deprecated by PCI DSS and major browsers due to BEAST attack',
-        },
-        ssl.PROTOCOL_TLSv1_1: {
-            'name': 'TLSv1.1',
-            'secure': False,
-            'severity': 'high',
-            'description': 'TLS 1.1 is deprecated by major browsers and PCI DSS',
-        },
-        ssl.PROTOCOL_TLSv1_2: {
-            'name': 'TLSv1.2',
-            'secure': True,
-            'severity': 'info',
-            'description': 'TLS 1.2 is currently secure when properly configured',
-        },
-    }
-    
-    # TLS 1.3 constant (Python 3.7+)
-    try:
-        PROTOCOLS[ssl.PROTOCOL_TLS] = {
-            'name': 'TLSv1.2 (negotiated)',
-            'secure': True,
-            'severity': 'info',
-            'description': 'Using negotiated TLS version',
-        }
-    except AttributeError:
-        pass
-    
-    # TLS 1.3 support (Python 3.7+)
-    HAS_TLS13 = hasattr(ssl, 'PROTOCOL_TLSv1_3')
-    if HAS_TLS13:
-        PROTOCOLS[ssl.PROTOCOL_TLSv1_3] = {
-            'name': 'TLSv1.3',
-            'secure': True,
-            'severity': 'info',
-            'description': 'TLS 1.3 is the most secure version available',
-        }
     
     def __init__(self, browser, target_url: str, config: Dict):
         """
@@ -91,6 +37,81 @@ class Scanner:
         parsed = urlparse(target_url)
         self.hostname = parsed.hostname
         self.port = parsed.port or 443
+        
+        # Build protocol list dynamically based on Python version
+        self.protocols = self._build_protocol_list()
+    
+    def _build_protocol_list(self) -> Dict:
+        """
+        Build protocol list based on available SSL constants.
+        Python 3.10+ removed SSLv2, SSLv3 constants.
+        """
+        protocols = {}
+        
+        # Define protocol metadata
+        protocol_defs = [
+            ('SSLv2', 'critical', False, 'SSL 2.0 is completely insecure (RFC 6176)'),
+            ('SSLv3', 'critical', False, 'SSL 3.0 is vulnerable to POODLE attack (RFC 7568)'),
+            ('TLSv1_0', 'high', False, 'TLS 1.0 is deprecated due to BEAST attack'),
+            ('TLSv1_1', 'high', False, 'TLS 1.1 is deprecated by PCI DSS and browsers'),
+            ('TLSv1_2', 'info', True, 'TLS 1.2 is currently secure when properly configured'),
+            ('TLSv1_3', 'info', True, 'TLS 1.3 is the most secure and performant version'),
+        ]
+        
+        for name, severity, secure, description in protocol_defs:
+            proto_info = {
+                'name': name,
+                'severity': severity,
+                'secure': secure,
+                'description': description,
+                'available': False,
+                'constant': None,
+            }
+            
+            # Try to get the SSL constant
+            constant = self._get_protocol_constant(name)
+            if constant is not None:
+                proto_info['available'] = True
+                proto_info['constant'] = constant
+            else:
+                # Even if constant not available, keep for reporting
+                proto_info['available'] = False
+            
+            protocols[name] = proto_info
+        
+        return protocols
+    
+    def _get_protocol_constant(self, name: str):
+        """
+        Get SSL protocol constant by name.
+        Handles Python version differences.
+        """
+        # Map protocol names to possible constant names
+        name_map = {
+            'SSLv2': ['PROTOCOL_SSLv2'],
+            'SSLv3': ['PROTOCOL_SSLv3'],
+            'TLSv1_0': ['PROTOCOL_TLSv1', 'PROTOCOL_TLS'],
+            'TLSv1_1': ['PROTOCOL_TLSv1_1'],
+            'TLSv1_2': ['PROTOCOL_TLSv1_2', 'PROTOCOL_TLS'],
+            'TLSv1_3': ['PROTOCOL_TLSv1_3', 'PROTOCOL_TLS_CLIENT'],
+        }
+        
+        constants = name_map.get(name, [])
+        
+        for const_name in constants:
+            if hasattr(ssl, const_name):
+                const_value = getattr(ssl, const_name)
+                # Validate it's usable
+                try:
+                    # Some constants exist but raise errors when used
+                    if name in ['SSLv2', 'SSLv3']:
+                        # Try to create context to verify it works
+                        ssl.SSLContext(const_value)
+                    return const_value
+                except (ssl.SSLError, ValueError, AttributeError, OSError):
+                    continue
+        
+        return None
     
     def run(self) -> Dict:
         """
@@ -109,66 +130,81 @@ class Scanner:
             'insecure_protocols': [],
             'secure_protocols': [],
             'highest_protocol': None,
+            'python_ssl_version': ssl.OPENSSL_VERSION if hasattr(ssl, 'OPENSSL_VERSION') else 'Unknown',
             'findings': []
         }
         
-        # Test each protocol version
-        for protocol_const, protocol_info in self.PROTOCOLS.items():
-            is_supported = self._test_protocol(protocol_const)
+        # Test each protocol
+        for proto_name, proto_info in self.protocols.items():
+            is_supported = False
+            
+            if proto_info['available'] and proto_info['constant'] is not None:
+                is_supported = self._test_protocol(proto_info['constant'])
+            else:
+                # Protocol constant not available in this Python version
+                # SSLv2/SSLv3 removed in Python 3.10+
+                logger.debug(f"Protocol {proto_name} not testable in this Python version")
             
             protocol_result = {
-                'name': protocol_info['name'],
+                'name': proto_info['name'],
                 'supported': is_supported,
-                'secure': protocol_info['secure'],
+                'secure': proto_info['secure'],
+                'testable': proto_info['available'],
             }
             
             result['supported_protocols'].append(protocol_result)
             
             if is_supported:
-                if protocol_info['secure']:
-                    result['secure_protocols'].append(protocol_info['name'])
+                if proto_info['secure']:
+                    result['secure_protocols'].append(proto_info['name'])
                 else:
-                    result['insecure_protocols'].append(protocol_info['name'])
+                    result['insecure_protocols'].append(proto_info['name'])
                     
-                    # Add finding for insecure protocol
                     self.findings.append({
-                        'title': f'Insecure protocol supported: {protocol_info["name"]}',
-                        'severity': protocol_info['severity'],
-                        'description': protocol_info['description'],
+                        'title': 'Insecure protocol supported: ' + proto_info['name'],
+                        'severity': proto_info['severity'],
+                        'description': proto_info['description'],
                         'recommendation': (
-                            f"Disable {protocol_info['name']} and enable only TLS 1.2 and TLS 1.3. "
+                            "Disable " + proto_info['name'] + " and enable only TLS 1.2 and TLS 1.3. "
                             "Update server configuration to remove support for outdated protocols."
                         ),
                         'module': self.module_name,
-                        'cwe_id': 'CWE-326' if protocol_info['severity'] in ['critical', 'high'] else None,
-                        'cvss_score': 7.5 if protocol_info['severity'] == 'critical' else 5.0,
-                        'evidence': f"{protocol_info['name']} is supported by the server",
+                        'cwe_id': 'CWE-326' if proto_info['severity'] in ['critical', 'high'] else None,
+                        'cvss_score': 7.5 if proto_info['severity'] == 'critical' else 5.0,
+                        'evidence': proto_info['name'] + " is supported by the server",
                     })
         
         # Find highest supported protocol
-        for protocol_const, protocol_info in reversed(list(self.PROTOCOLS.items())):
-            if any(p['name'] == protocol_info['name'] and p['supported'] 
-                   for p in result['supported_protocols']):
-                result['highest_protocol'] = protocol_info['name']
+        for proto_name in ['TLSv1_3', 'TLSv1_2', 'TLSv1_1', 'TLSv1_0']:
+            for p in result['supported_protocols']:
+                if p['name'] == self.protocols[proto_name]['name'] and p['supported']:
+                    result['highest_protocol'] = self.protocols[proto_name]['name']
+                    break
+            if result['highest_protocol']:
                 break
         
-        # Check if TLS 1.3 is available
-        if 'TLSv1.3' not in result['secure_protocols']:
+        # Check TLS 1.3
+        tls13_supported = any(
+            p['name'] == 'TLSv1_3' and p['supported']
+            for p in result['supported_protocols']
+        )
+        
+        if not tls13_supported and result['secure_protocols']:
             self.findings.append({
                 'title': 'TLS 1.3 not supported',
                 'severity': 'medium',
-                'description': 'The server does not support TLS 1.3, which is the most secure and performant version',
+                'description': 'The server does not support TLS 1.3, the most secure and performant version',
                 'recommendation': 'Enable TLS 1.3 support in the web server configuration',
                 'module': self.module_name,
                 'cvss_score': 4.0,
             })
         
-        # Check if only secure protocols are enabled
+        # All clear check
         if not result['insecure_protocols'] and result['secure_protocols']:
             self.findings.append({
                 'title': 'Protocol configuration is secure',
                 'severity': 'info',
-                'description': f"Only secure protocols are enabled: {', '.join(result['secure_protocols'])}",
+                'description': "Only secure protocols are enabled: " + ", ".join(result['secure_protocols']),
                 'recommendation': 'Continue monitoring for new protocol vulnerabilities',
                 'module': self.module_name,
             })
@@ -182,7 +218,7 @@ class Scanner:
         )
         return result
     
-    def _test_protocol(self, protocol_const: int) -> bool:
+    def _test_protocol(self, protocol_const) -> bool:
         """
         Test if a specific SSL/TLS protocol version is supported.
         
@@ -193,30 +229,23 @@ class Scanner:
             True if protocol is supported
         """
         try:
-            # Skip SSLv2 on newer Python versions
-            if protocol_const == ssl.PROTOCOL_SSLv2:
-                try:
-                    context = ssl.SSLContext(protocol_const)
-                except (ssl.SSLError, ValueError, AttributeError):
-                    return False
-            else:
-                context = ssl.SSLContext(protocol_const)
+            context = ssl.SSLContext(protocol_const)
             
-            # Set minimum security for connection
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
             
-            # Set ciphers (allow all for testing)
-            context.set_ciphers('ALL:@SECLEVEL=0')
+            # Set minimum ciphers for testing
+            try:
+                context.set_ciphers('ALL:@SECLEVEL=0')
+            except (ssl.SSLError, AttributeError):
+                pass  # Some protocols don't support set_ciphers
             
             with socket.create_connection((self.hostname, self.port), timeout=5) as sock:
                 with context.wrap_socket(sock, server_hostname=self.hostname) as ssock:
-                    # Connection successful - protocol is supported
                     return True
                     
-        except (ssl.SSLError, socket.error, ConnectionRefusedError, OSError) as e:
-            # Protocol not supported or connection failed
+        except (ssl.SSLError, socket.error, ConnectionRefusedError, OSError, ValueError, AttributeError):
             return False
         except Exception as e:
-            logger.debug(f"Protocol test error ({protocol_const}): {e}")
+            logger.debug(f"Protocol test error: {e}")
             return False
