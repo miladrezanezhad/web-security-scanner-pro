@@ -9,31 +9,46 @@ from pathlib import Path
 this_directory = Path(__file__).parent
 long_description = (this_directory / "README.md").read_text(encoding="utf-8") if (this_directory / "README.md").exists() else ""
 
-with open("requirements.txt", "r", encoding="utf-8") as f:
-    requirements = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+# لیست ثابت به جای خوندن از فایل
+requirements = [
+    "requests>=2.31",
+    "beautifulsoup4>=4.12",
+    "colorama>=0.4.6",
+    "packaging>=24.0",
+    "pyyaml>=6.0",
+    "tabulate>=0.9.0",
+    "rich>=13.7",
+    "click>=8.1",
+    "loguru>=0.7",
+    "jinja2>=3.1",
+    "cryptography>=42.0",
+    "pyOpenSSL>=24.0",
+    "dnspython>=2.6",
+    "httpx>=0.27",
+    "sqlalchemy>=2.0",
+    "tqdm>=4.66",
+]
 
 setup(
-    name="web-security-analyzer-pro",
+    name="wsa-pro",
     version="3.0.0",
-    author="Security Research Team",
-    author_email="security@example.com",
+    author="Milad Rezanezhad",
+    author_email="miladvf2014@gmail.com",
     description="Comprehensive web application security scanner",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/YOUR_USERNAME/web-security-scanner-pro",
+    url="https://github.com/miladrezanezhad/web-security-scanner-pro",
     packages=find_packages(include=["core", "core.*", "modules", "modules.*", "database", "database.*"]),
     python_requires=">=3.9",
     install_requires=requirements,
     entry_points={
         "console_scripts": [
             "wsap=main:cli",
-            "web-security-scanner=main:cli",
         ],
     },
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Intended Audience :: Information Technology",
-        "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
