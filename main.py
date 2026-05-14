@@ -94,6 +94,7 @@ def show_modules_menu():
   32. Command Injection
   33. File Upload
   34. SSRF (Server-Side Request Forgery)
+  35. DOM XSS (Client-Side XSS) 
 
 {Fore.GREEN}🔹 SSL & Security:{Style.RESET_ALL}
   35. SSL/TLS Certificate
@@ -125,9 +126,9 @@ def get_module_selection():
         '23': 'cpanel', '24': 'directadmin', '25': 'plesk',
         '26': 'xss', '27': 'sqli', '28': 'lfi', '29': 'xxe',
         '30': 'ssti', '31': 'csrf', '32': 'command_injection',
-        '33': 'file_upload', '34': 'ssrf',
-        '35': 'ssl', '36': 'ssl_protocols', '37': 'headers',
-        '38': 'graphql', '39': 'rest_api', '40': 'jwt',
+        '33': 'file_upload', '34': 'ssrf', '35': 'dom_xss',
+        '36': 'ssl', '37': 'ssl_protocols', '38': 'headers',
+        '39': 'graphql', '40': 'rest_api', '41': 'jwt',
     }
     
     while True:
