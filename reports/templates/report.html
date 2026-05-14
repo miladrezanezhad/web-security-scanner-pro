@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Scan Report - {{ target_url }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            line-height: 1.6; 
+            color: #333; 
+            background: #f5f5f5; 
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        
+        .header { 
+            background: linear-gradient(135deg, #1a237e, #0d47a1); 
+            color: white; 
+            padding: 40px; 
+            border-radius: 12px; 
+            margin-bottom: 30px; 
+            text-align: center;
+        }
+        .header h1 { font-size: 2.2em; margin-bottom: 10px; }
+        .header .subtitle { font-size: 1.1em; opacity: 0.9; }
+        .header .meta { margin-top: 20px; font-size: 0.9em; opacity: 0.8; }
+        
+        .summary-cards { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
+            gap: 15px; 
+            margin-bottom: 30px; 
+        }
+        .summary-card { 
+            background: white; 
+            padding: 20px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+            text-align: center; 
+        }
+        .summary-card.critical { border-top: 4px solid #dc3545; }
+        .summary-card.high { border-top: 4px solid #fd7e14; }
+        .summary-card.medium { border-top: 4px solid #ffc107; }
+        .summary-card.low { border-top: 4px solid #28a745; }
+        .summary-card.info { border-top: 4px solid #17a2b8; }
+        .summary-card .count { font-size: 3em; font-weight: bold; }
+        .summary-card.critical .count { color: #dc3545; }
+        .summary-card.high .count { color: #fd7e14; }
+        .summary-card.medium .count { color: #ffc107; }
+        .summary-card.low .count { color: #28a745; }
+        .summary-card.info .count { color: #17a2b8; }
+        .summary-card .label { color: #666; margin-top: 5px; }
+        
+        .section { 
+            background: white; 
+            padding: 30px; 
+            border-radius: 10px; 
+            margin-bottom: 25px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+        }
+        .section h2 { 
+            margin-bottom: 20px; 
+            color: #1a237e; 
+            border-bottom: 2px solid #e0e0e0; 
+            padding-bottom: 10px; 
+        }
+        
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e0e0e0; }
+        th { background: #f5f5f5; font-weight: 600; }
+        tr:hover { background: #fafafa; }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            color: white;
+        }
+        .badge-critical { background: #dc3545; }
+        .badge-high { background: #fd7e14; }
+        .badge-medium { background: #ffc107; color: #333; }
+        .badge-low { background: #28a745; }
+        .badge-info { background: #17a2b8; }
+        
+        .finding-card {
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #ddd;
+            background: #fafafa;
+        }
+        .finding-card.critical { border-left-color: #dc3545; }
+        .finding-card.high { border-left-color: #fd7e14; }
+        .finding-card.medium { border-left-color: #ffc107; }
+        .finding-card.low { border-left-color: #28a745; }
+        .finding-card.info { border-left-color: #17a2b8; }
+        
+        .finding-card h3 { margin-bottom: 10px; }
+        .finding-meta { margin: 10px 0; font-size: 0.9em; color: #666; }
+        .finding-meta span { margin-right: 15px; }
+        
+        .remediation-box {
+            background: #e8f5e9;
+            border-left: 4px solid #4caf50;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        .remediation-box h4 { color: #2e7d32; margin-bottom: 8px; }
+        
+        .evidence-box {
+            background: #263238;
+            color: #aed581;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        
+        .footer { 
+            text-align: center; 
+            padding: 20px; 
+            color: #666; 
+            font-size: 0.9em; 
+            border-top: 1px solid #e0e0e0;
+            margin-top: 30px;
+        }
+        
+        .progress-bar {
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.3s;
+        }
+        
+        @media print {
+            body { background: white; }
+            .section { box-shadow: none; break-inside: avoid; }
+            .finding-card { break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <!-- Header -->
+        <div class="header">
+            <h1>🔒 Security Scan Report</h1>
+            <p class="subtitle">Web Security Analyzer Pro v3.0</p>
+            <div class="meta">
+                <p><strong>Target:</strong> {{ target_url }}</p>
+                <p><strong>Scan Date:</strong> {{ scan_time }}</p>
+                <p><strong>Scan Duration:</strong> {{ scan_duration }} seconds</p>
+                <p><strong>Scan Mode:</strong> {{ scan_mode }}</p>
+            </div>
+        </div>
+        
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+            <div class="summary-card critical">
+                <div class="count">{{ critical_count }}</div>
+                <div class="label">🔴 Critical</div>
+            </div>
+            <div class="summary-card high">
+                <div class="count">{{ high_count }}</div>
+                <div class="label">🟠 High</div>
+            </div>
+            <div class="summary-card medium">
+                <div class="count">{{ medium_count }}</div>
+                <div class="label">🟡 Medium</div>
+            </div>
+            <div class="summary-card low">
+                <div class="count">{{ low_count }}</div>
+                <div class="label">🟢 Low</div>
+            </div>
+            <div class="summary-card info">
+                <div class="count">{{ info_count }}</div>
+                <div class="label">🔵 Info</div>
+            </div>
+        </div>
+        
+        <!-- Executive Summary -->
+        <div class="section">
+            <h2>📊 Executive Summary</h2>
+            
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ critical_percent }}%; background: #dc3545;"></div>
+            </div>
+            <p>Critical: {{ critical_count }} ({{ critical_percent }}%)</p>
+            
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ high_percent }}%; background: #fd7e14;"></div>
+            </div>
+            <p>High: {{ high_count }} ({{ high_percent }}%)</p>
+            
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {{ medium_percent }}%; background: #ffc107;"></div>
+            </div>
+            <p>Medium: {{ medium_count }} ({{ medium_percent }}%)</p>
+            
+            <p style="margin-top: 20px;">
+                <strong>Total Findings:</strong> {{ total_count }} |
+                <strong>Modules Executed:</strong> {{ modules_count }}
+            </p>
+            <p><strong>Modules:</strong> {{ modules_list }}</p>
+        </div>
+        
+        <!-- Findings Overview Table -->
+        <div class="section">
+            <h2>📋 Findings Overview</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Severity</th>
+                        <th>Title</th>
+                        <th>Module</th>
+                        <th>CVSS</th>
+                        <th>CVE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{ findings_table_rows }}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Detailed Findings -->
+        <div class="section">
+            <h2>🔍 Detailed Findings</h2>
+            {{ detailed_findings }}
+        </div>
+        
+        <!-- Recommendations Summary -->
+        <div class="section">
+            <h2>🔧 Recommendations Summary</h2>
+            {{ recommendations_list }}
+        </div>
+        
+        <!-- Footer -->
+        <div class="footer">
+            <p>Generated by <strong>Web Security Analyzer Pro v3.0</strong></p>
+            <p>Report generated on {{ generation_time }}</p>
+            <p><em>This report is confidential and intended for authorized personnel only.</em></p>
+            <p><em>False positives may occur. Verify findings before taking action.</em></p>
+        </div>
+        
+    </div>
+</body>
+</html>
