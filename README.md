@@ -367,6 +367,3 @@ Created by **Milad Rezanezhad**
 ## 🌟 Star History
 
 If this tool helps you, please consider giving it a **star ⭐** on GitHub!
-
-- راهنمای نصب و استفاده
-- جدول مقایسه با ۱۰ ابزار دیگه
