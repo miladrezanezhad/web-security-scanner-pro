@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup configuration for Web Security Analyzer Pro.
+Setup configuration for WSA Pro - Web Security Analyzer.
 """
 
 from setuptools import setup, find_packages
@@ -9,7 +9,6 @@ from pathlib import Path
 this_directory = Path(__file__).parent
 long_description = (this_directory / "README.md").read_text(encoding="utf-8") if (this_directory / "README.md").exists() else ""
 
-# لیست ثابت به جای خوندن از فایل
 requirements = [
     "requests>=2.31",
     "beautifulsoup4>=4.12",
@@ -34,7 +33,7 @@ setup(
     version="3.0.0",
     author="Milad Rezanezhad",
     author_email="miladvf2014@gmail.com",
-    description="Comprehensive web application security scanner",
+    description="Web Security Analyzer Pro - Advanced Security Scanner",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/miladrezanezhad/web-security-scanner-pro",
@@ -43,17 +42,18 @@ setup(
     install_requires=requirements,
     entry_points={
         "console_scripts": [
-            "wsap=main:cli",
+            "wsa=main:cli",
         ],
     },
+    license="MIT",
     classifiers=[
         "Development Status :: 5 - Production/Stable",
-        "Intended Audience :: Information Technology",
-        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
         "Operating System :: OS Independent",
+        "Topic :: Security",
     ],
 )

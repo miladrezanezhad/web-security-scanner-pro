@@ -1,12 +1,147 @@
-@"
-requests>=2.31.0
-beautifulsoup4>=4.12.0
-colorama>=0.4.6
-packaging>=24.0
-pyyaml>=6.0
-loguru>=0.7.0
-rich>=13.7.0
-click>=8.1.0
-jinja2>=3.1.0
-tabulate>=0.9.0
-"@ | Out-File -FilePath requirements.txt -Encoding UTF8
+# ============================================================================
+# Web Security Analyzer Pro v3.0 - Dependencies
+# ============================================================================
+# Install: pip install -r requirements.txt
+# Minimum Python: 3.9+
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# Core Dependencies (Required)
+# ---------------------------------------------------------------------------
+
+# HTTP requests with session management
+requests==2.32.3
+
+# HTML/XML parsing
+beautifulsoup4==4.12.3
+
+# Terminal colors and styling
+colorama==0.4.6
+
+# Version comparison (for vulnerability matching)
+packaging==24.1
+
+# YAML configuration parsing
+pyyaml==6.0.1
+
+# Table formatting for CLI output
+tabulate==0.9.0
+
+# Rich terminal output (progress bars, panels, tables)
+rich==13.7.1
+
+# Command-line interface framework
+click==8.1.7
+
+# Advanced logging
+loguru==0.7.2
+
+# Environment variable management
+python-dotenv==1.0.1
+
+# ---------------------------------------------------------------------------
+# Reporting Dependencies (Optional)
+# ---------------------------------------------------------------------------
+
+# HTML/PDF report generation
+jinja2==3.1.4
+
+# Markdown processing
+markdown==3.6
+
+# PDF generation (requires wkhtmltopdf installed separately)
+# pdfkit==1.0.0
+
+# HTML to PDF conversion
+# weasyprint==61.2
+
+# ---------------------------------------------------------------------------
+# API Server Dependencies (Optional)
+# ---------------------------------------------------------------------------
+
+# FastAPI framework for REST API
+# fastapi==0.111.0
+
+# ASGI server for FastAPI
+# uvicorn==0.30.1
+
+# Data validation for API
+# pydantic==2.7.4
+
+# ---------------------------------------------------------------------------
+# SSL/TLS Analysis
+# ---------------------------------------------------------------------------
+
+# Cryptography library for certificate analysis
+cryptography==42.0.8
+
+# OpenSSL bindings
+pyOpenSSL==24.1.0
+
+# ---------------------------------------------------------------------------
+# Network Utilities
+# ---------------------------------------------------------------------------
+
+# DNS resolution
+dnspython==2.6.1
+
+# WHOIS lookups
+python-whois==0.8.0
+
+# SOCKS proxy support (for Tor)
+socksio==1.0.0
+
+# Async HTTP client
+httpx==0.27.0
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+
+# SQLAlchemy ORM (for database operations)
+sqlalchemy==2.0.31
+
+# ---------------------------------------------------------------------------
+# Async Support
+# ---------------------------------------------------------------------------
+
+# Async HTTP client/server
+aiohttp==3.9.5
+
+# ---------------------------------------------------------------------------
+# Development & Testing (Optional)
+# ---------------------------------------------------------------------------
+
+# Testing framework
+# pytest==8.2.2
+
+# Code coverage
+# pytest-cov==5.0.0
+
+# Async test support
+# pytest-asyncio==0.23.7
+
+# Code formatting
+# black==24.4.2
+
+# Linting
+# flake8==7.1.0
+
+# Type checking
+# mypy==1.10.0
+
+# Import sorting
+# isort==5.13.2
+
+# ---------------------------------------------------------------------------
+# Utilities
+# ---------------------------------------------------------------------------
+
+# Progress bars
+tqdm==4.66.4
+
+# Date/time handling
+python-dateutil==2.9.0
+
+# URL parsing
+urllib3==2.2.2
