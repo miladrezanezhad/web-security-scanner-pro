@@ -1,0 +1,22 @@
+name: Feature Request
+description: Suggest a new feature or module
+labels: [enhancement]
+body:
+  - type: textarea
+    attributes:
+      label: What do you want?
+      description: Describe the feature or module
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Why is it useful?
+  - type: dropdown
+    attributes:
+      label: Type
+      options:
+        - New security module
+        - Report format
+        - CLI improvement
+        - Documentation
+        - Other

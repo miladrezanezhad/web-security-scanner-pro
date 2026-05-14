@@ -1,0 +1,26 @@
+name: Bug Report
+description: Report a bug or problem
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: Describe the bug
+      description: What happened?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Steps to reproduce
+      description: How can we see the bug?
+  - type: input
+    attributes:
+      label: Python version
+      placeholder: "3.11.9"
+  - type: input
+    attributes:
+      label: WSA Pro version
+      placeholder: "3.0.0"
+  - type: input
+    attributes:
+      label: Operating System
+      placeholder: "Windows 11"
