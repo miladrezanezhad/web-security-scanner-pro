@@ -1,4 +1,12 @@
+<div align="center">
+
+<img src="image.png" alt="Web Security Scanner Pro">
+
 # 🔒 Web Security Analyzer Pro v3.0
+
+Advanced Open Source Web Security Scanner
+
+</div>
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
