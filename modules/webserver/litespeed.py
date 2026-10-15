@@ -89,7 +89,7 @@ class Scanner:
                 'cvss_score': 3.0,
             })
         
-        result['findings'] = self.findings
+        self.findings = result['findings']
         return result
     
     def _detect_litespeed(self) -> Dict:

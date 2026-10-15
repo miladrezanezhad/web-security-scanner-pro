@@ -8,6 +8,7 @@ References:
     - CWE-200: Exposure of Sensitive Information
 """
 
+import re
 import socket
 from typing import Dict, List, Optional
 from urllib.parse import urlparse

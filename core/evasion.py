@@ -304,9 +304,10 @@ class EvasionEngine:
                 logger.warning(f"Block detected: '{indicator}' in response")
                 return True
         
-        # Check headers
+        # Check headers efficiently using set
+        header_keys_lower = {h.lower() for h in response.headers.keys()}
         for header in self.block_patterns["header_indicators"]:
-            if header.lower() in [h.lower() for h in response.headers.keys()]:
+            if header.lower() in header_keys_lower:
                 self.blocked_count += 1
                 return True
         

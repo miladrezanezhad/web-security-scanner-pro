@@ -16,7 +16,7 @@ Modules:
 
 __version__ = "3.0.0"
 __author__ = "Security Research Team"
-__license__ = "GPLv3"
+__license__ = "MIT"
 
 from core.scanner import SecurityScanner, ScanResult, Finding
 from core.browser import StealthBrowser
@@ -24,7 +24,12 @@ from core.evasion import EvasionEngine, EvasionConfig, ScanMode
 from core.database import VulnerabilityDatabase
 from core.reporter import ReportGenerator
 from core.updater import DatabaseUpdater
-from core.api import APIServer
+
+# Lazy import for APIServer to allow running core without FastAPI installed
+try:
+    from core.api import APIServer
+except ImportError:
+    APIServer = None
 
 __all__ = [
     "SecurityScanner",

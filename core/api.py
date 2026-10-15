@@ -19,6 +19,7 @@ import sys
 import json
 import uuid
 import asyncio
+import copy
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pathlib import Path
@@ -117,12 +118,13 @@ class APIServer:
             redoc_url="/redoc",
         )
         
-        # CORS middleware
+        # CORS middleware - allow configured origins or localhost by default
+        cors_origins = config.get('api', {}).get('cors_origins', ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8000"])
         self.app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
+            allow_origins=cors_origins,
             allow_credentials=True,
-            allow_methods=["*"],
+            allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
             allow_headers=["*"],
         )
         
@@ -159,9 +161,13 @@ class APIServer:
         
         # Default key for development
         if not keys:
-            default_key = os.getenv('WSAP_DEFAULT_KEY', 'dev-key-change-in-production')
-            keys[default_key] = 'admin'
-            logger.warning("Using default API key. Change this in production!")
+            default_key = os.getenv('WSAP_DEFAULT_KEY')
+            if default_key:
+                keys[default_key] = 'admin'
+            else:
+                generated_key = str(uuid.uuid4())
+                keys[generated_key] = 'admin'
+                logger.warning(f"No API key configured. Generated ephemeral admin key: {generated_key}")
         
         return keys
     
@@ -452,8 +458,10 @@ class APIServer:
             self.active_scans[scan_id]['status'] = 'running'
             self.active_scans[scan_id]['started_at'] = datetime.now().isoformat()
             
-            # Configure scanner
-            scan_config = self.config.copy()
+            # Configure scanner (deep copy to avoid race condition across concurrent scans)
+            scan_config = copy.deepcopy(self.config)
+            if 'scan_mode' not in scan_config:
+                scan_config['scan_mode'] = {}
             scan_config['scan_mode']['default'] = scan_request.mode
             
             # Create scanner

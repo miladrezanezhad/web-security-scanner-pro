@@ -17,7 +17,7 @@ import time
 import random
 import logging
 from typing import Dict, Optional, Any
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
@@ -35,16 +35,18 @@ class StealthBrowser:
     to avoid detection by WAFs, rate limiters, and security systems.
     """
     
-    def __init__(self, target_url: str, evasion_config: EvasionConfig = None):
+    def __init__(self, target_url: str, evasion_config: EvasionConfig = None, verify_ssl: bool = False):
         """
         Initialize the stealth browser.
-        
+
         Args:
             target_url: Target URL for all requests
             evasion_config: Evasion engine configuration
+            verify_ssl: Whether to verify SSL certificates (default False for pentesting)
         """
         self.target_url = target_url.rstrip('/')
         self.evasion_config = evasion_config or EvasionConfig()
+        self.verify_ssl = verify_ssl
         self.evasion = EvasionEngine(self.evasion_config)
         self.session = self._create_session()
         
@@ -94,13 +96,14 @@ class StealthBrowser:
         session.mount("https://", adapter)
         
         # Default settings
-        session.verify = False
+        session.verify = getattr(self, 'verify_ssl', False)
         session.allow_redirects = True
         session.max_redirects = 5
-        
-        # Suppress SSL warnings for scanning
-        import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+        # Suppress SSL warnings only if verification is disabled
+        if not session.verify:
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
         return session
     
@@ -285,7 +288,18 @@ class StealthBrowser:
                 self.stats["requests_blocked"] += 1
             
             self.stats["bytes_received"] += len(response.content)
-            
+
+            # Track request in history
+            self.request_history.append({
+                'method': 'POST',
+                'path': path,
+                'status': response.status_code,
+                'time': 0,
+                'size': len(response.content),
+            })
+            if len(self.request_history) > 100:
+                self.request_history = self.request_history[-50:]
+
             return response
             
         except requests.RequestException as e:
@@ -355,7 +369,7 @@ class StealthBrowser:
             return path
         if path.startswith(':'):
             # Port-only path (e.g., ':8443')
-            parsed = __import__('urllib.parse').urlparse(self.target_url)
+            parsed = urlparse(self.target_url)
             return f"{parsed.scheme}://{parsed.hostname}{path}"
         return urljoin(self.target_url, path)
     

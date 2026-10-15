@@ -86,5 +86,45 @@ class TestSecurityHeaders:
         
         scanner = Scanner(browser, sample_target, sample_config)
         result = scanner.run()
-        
+
         assert isinstance(result, dict)
+
+
+class TestSSLCiphers:
+    """Test SSL Ciphers module."""
+
+    def test_module_imports(self):
+        """Test that SSL Ciphers module can be imported."""
+        try:
+            from modules.ssl_tls import ciphers
+            assert hasattr(ciphers, 'Scanner')
+        except ImportError as e:
+            pytest.fail(f"Failed to import SSL Ciphers module: {e}")
+
+    def test_scanner_initialization(self, browser, sample_target, sample_config):
+        """Test scanner initialization."""
+        from modules.ssl_tls.ciphers import Scanner
+
+        scanner = Scanner(browser, sample_target, sample_config)
+        assert scanner is not None
+        assert hasattr(scanner, 'run')
+
+
+class TestInformationDisclosure:
+    """Test Headers Information Disclosure module."""
+
+    def test_module_imports(self):
+        """Test that Information Disclosure module can be imported."""
+        try:
+            from modules.headers import information_disclosure
+            assert hasattr(information_disclosure, 'Scanner')
+        except ImportError as e:
+            pytest.fail(f"Failed to import Information Disclosure module: {e}")
+
+    def test_scanner_initialization(self, browser, sample_target, sample_config):
+        """Test scanner initialization."""
+        from modules.headers.information_disclosure import Scanner
+
+        scanner = Scanner(browser, sample_target, sample_config)
+        assert scanner is not None
+        assert hasattr(scanner, 'run')

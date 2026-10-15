@@ -246,7 +246,7 @@ class Scanner:
             Dict with engine info or None
         """
         # Stage 1: Detection with mathematical operations
-        for operation, (payload, expected) in self.math_payloads['multiply']:
+        for payload, expected in self.math_payloads['multiply']:
             test_params = params.copy()
             test_params[param_name] = payload
             

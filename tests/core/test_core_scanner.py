@@ -132,6 +132,21 @@ class TestSecurityScanner:
         assert 'wordpress' in scanner.MODULE_MAP
         assert 'xss' in scanner.MODULE_MAP
         assert 'sqli' in scanner.MODULE_MAP
+
+    def test_all_modules_in_map_can_import_and_instantiate(self, scanner):
+        """Test that every module in MODULE_MAP can be dynamically imported and instantiated."""
+        import importlib
+        dummy_browser = scanner.browser
+        dummy_target = "https://example.com"
+        dummy_config = {'scan_mode': {'default': 'stealth'}, 'modules': {}}
+
+        for name, import_path in scanner.MODULE_MAP.items():
+            mod = importlib.import_module(import_path)
+            assert hasattr(mod, 'Scanner') or hasattr(mod, 'run'), f"Module {name} ({import_path}) has no Scanner class or run function"
+            if hasattr(mod, 'Scanner'):
+                instance = mod.Scanner(browser=dummy_browser, target_url=dummy_target, config=dummy_config)
+                assert instance is not None
+                assert hasattr(instance, 'run') or hasattr(instance, 'run_async')
     
     def test_resolve_modules_returns_list(self, scanner):
         """Test module resolution returns a list."""

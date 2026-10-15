@@ -299,6 +299,12 @@ class Scanner:
         tech_detected = self._detect_technologies(all_headers)
         result['technologies_detected'] = tech_detected['technologies']
         result['versions_detected'] = tech_detected['versions']
+
+        # Populate specific PHP keys for consumer convenience
+        if 'PHP' in tech_detected['versions']:
+            result['php_detected'] = True
+            result['version'] = tech_detected['versions']['PHP']
+            result['php_version'] = tech_detected['versions']['PHP']
         
         for tech, info in tech_detected['technologies'].items():
             version_info = ''

@@ -242,6 +242,10 @@ class Scanner:
             
             with socket.create_connection((self.hostname, self.port), timeout=5) as sock:
                 with context.wrap_socket(sock, server_hostname=self.hostname) as ssock:
+                    # If testing TLS 1.3 via PROTOCOL_TLS_CLIENT, verify negotiated version is actually TLS 1.3
+                    if protocol_const == getattr(ssl, 'PROTOCOL_TLS_CLIENT', None):
+                        actual_version = ssock.version()
+                        return actual_version == 'TLSv1.3'
                     return True
                     
         except (ssl.SSLError, socket.error, ConnectionRefusedError, OSError, ValueError, AttributeError):

@@ -206,7 +206,67 @@ class TestSSRF:
     def test_scanner_initialization(self, browser, sample_target, sample_config):
         """Test scanner initialization."""
         from modules.vulnerabilities.ssrf import Scanner
-        
+
+        scanner = Scanner(browser, sample_target, sample_config)
+        assert scanner is not None
+        assert hasattr(scanner, 'run')
+
+
+class TestRFI:
+    """Test RFI vulnerability scanner module."""
+
+    def test_module_imports(self):
+        """Test that RFI module can be imported."""
+        try:
+            from modules.vulnerabilities import rfi
+            assert hasattr(rfi, 'Scanner')
+        except ImportError as e:
+            pytest.fail(f"Failed to import RFI module: {e}")
+
+    def test_scanner_initialization(self, browser, sample_target, sample_config):
+        """Test scanner initialization."""
+        from modules.vulnerabilities.rfi import Scanner
+
+        scanner = Scanner(browser, sample_target, sample_config)
+        assert scanner is not None
+        assert hasattr(scanner, 'run')
+
+
+class TestDeserialization:
+    """Test Deserialization vulnerability scanner module."""
+
+    def test_module_imports(self):
+        """Test that Deserialization module can be imported."""
+        try:
+            from modules.vulnerabilities import deserialization
+            assert hasattr(deserialization, 'Scanner')
+        except ImportError as e:
+            pytest.fail(f"Failed to import Deserialization module: {e}")
+
+    def test_scanner_initialization(self, browser, sample_target, sample_config):
+        """Test scanner initialization."""
+        from modules.vulnerabilities.deserialization import Scanner
+
+        scanner = Scanner(browser, sample_target, sample_config)
+        assert scanner is not None
+        assert hasattr(scanner, 'run')
+
+
+class TestDOMXSS:
+    """Test DOM-based XSS vulnerability scanner module."""
+
+    def test_module_imports(self):
+        """Test that DOM XSS module can be imported."""
+        try:
+            from modules.vulnerabilities import dom_xss
+            assert hasattr(dom_xss, 'Scanner')
+        except ImportError as e:
+            pytest.fail(f"Failed to import DOM XSS module: {e}")
+
+    def test_scanner_initialization(self, browser, sample_target, sample_config):
+        """Test scanner initialization."""
+        from modules.vulnerabilities.dom_xss import Scanner
+
         scanner = Scanner(browser, sample_target, sample_config)
         assert scanner is not None
         assert hasattr(scanner, 'run')

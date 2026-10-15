@@ -519,10 +519,10 @@ class Scanner:
             # Try on main web port
             resp = self.browser.get(path)
             if resp and resp.status_code == 200:
-                # Verify it's not a login redirect
-                if 'login' not in resp.text.lower() or len(resp.text) < 100:
+                # Verify it's not a login page or trivial error
+                if 'login' in resp.text.lower() or len(resp.text) < 100:
                     continue
-                
+
                 accessible.append({
                     'path': path,
                     'status': resp.status_code,

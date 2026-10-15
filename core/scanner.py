@@ -20,7 +20,7 @@ import importlib
 import asyncio
 from typing import Dict, List, Optional, Any, Tuple, Callable
 from datetime import datetime
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, asdict
 from loguru import logger
 from rich.console import Console
 from rich.table import Table
@@ -50,19 +50,7 @@ class Finding:
     
     def to_dict(self) -> Dict:
         """Convert finding to dictionary."""
-        return {
-            'title': self.title,
-            'severity': self.severity,
-            'description': self.description,
-            'recommendation': self.recommendation,
-            'module': self.module,
-            'cve_id': self.cve_id,
-            'cwe_id': self.cwe_id,
-            'cvss_score': self.cvss_score,
-            'evidence': self.evidence,
-            'references': self.references,
-            'timestamp': self.timestamp,
-        }
+        return asdict(self)
 
 
 @dataclass
@@ -99,18 +87,18 @@ class ScanResult:
             'timeout': self.timeout,
             'rps': self.rps,
             'modules_run': self.modules_run,
-            'findings': [f.to_dict() for f in self.findings],
+            'findings': [f.to_dict() if hasattr(f, 'to_dict') else f for f in self.findings],
             'module_results': self.module_results,
             'statistics': self.statistics,
             'urls_tested': len(self.module_results),
             'params_tested': sum(
-                len(r.get('parameters_tested', [])) 
-                for r in self.module_results.values() 
+                len(r.get('parameters_tested', [])) if isinstance(r.get('parameters_tested'), (list, tuple, set)) else (r.get('parameters_tested', 0) if isinstance(r.get('parameters_tested'), int) else 0)
+                for r in self.module_results.values()
                 if isinstance(r, dict)
             ),
             'forms_tested': sum(
-                len(r.get('forms_tested', [])) 
-                for r in self.module_results.values() 
+                len(r.get('forms_tested', [])) if isinstance(r.get('forms_tested'), (list, tuple, set)) else (r.get('forms_tested', 0) if isinstance(r.get('forms_tested'), int) else 0)
+                for r in self.module_results.values()
                 if isinstance(r, dict)
             ),
         }
@@ -194,6 +182,7 @@ class SecurityScanner:
         'file_upload': 'modules.vulnerabilities.file_upload',
         'deserialization': 'modules.vulnerabilities.deserialization',
         'ssrf': 'modules.vulnerabilities.ssrf',
+        'dom_xss': 'modules.vulnerabilities.dom_xss',
         
         # SSL/TLS
         'ssl': 'modules.ssl_tls.certificate',
@@ -232,7 +221,8 @@ class SecurityScanner:
         self.evasion = EvasionEngine(evasion_config)
         
         # Initialize browser
-        self.browser = StealthBrowser(target_url, evasion_config)
+        verify_ssl = config.get('scan_mode', {}).get('verify_ssl', False)
+        self.browser = StealthBrowser(target_url, evasion_config, verify_ssl=verify_ssl)
         
         # Initialize result container
         self.result = ScanResult(
@@ -648,8 +638,10 @@ class SecurityScanner:
                 if isinstance(finding_data, Finding):
                     self.result.add_finding(finding_data)
                 elif isinstance(finding_data, dict):
-                    # Create Finding from dict
-                    finding = Finding(**finding_data)
+                    # Filter valid fields for Finding dataclass to prevent TypeError on unexpected keys
+                    valid_fields = {f.name for f in fields(Finding)}
+                    filtered_data = {k: v for k, v in finding_data.items() if k in valid_fields}
+                    finding = Finding(**filtered_data)
                     self.result.add_finding(finding)
             
             findings_count = len(findings)
@@ -735,18 +727,22 @@ class SecurityScanner:
         if self.result.findings:
             critical_high = [
                 f for f in self.result.findings
-                if f.severity.lower() in ['critical', 'high']
+                if (f.severity if hasattr(f, 'severity') else f.get('severity', '')).lower() in ['critical', 'high']
             ]
-            
+
             if critical_high:
                 console.print("\n[bold red]🚨 CRITICAL & HIGH PRIORITY FINDINGS:[/bold red]\n")
                 for i, finding in enumerate(critical_high[:10], 1):
-                    color = 'red' if finding.severity.lower() == 'critical' else 'orange1'
-                    cve = f" [{finding.cve_id}]" if finding.cve_id else ""
-                    cvss = f" (CVSS: {finding.cvss_score})" if finding.cvss_score else ""
+                    sev = (finding.severity if hasattr(finding, 'severity') else finding.get('severity', 'info')).lower()
+                    color = 'red' if sev == 'critical' else 'orange1'
+                    title = finding.title if hasattr(finding, 'title') else finding.get('title', 'Untitled')
+                    cve_id = finding.cve_id if hasattr(finding, 'cve_id') else finding.get('cve_id')
+                    cve = f" [{cve_id}]" if cve_id else ""
+                    cvss_score = finding.cvss_score if hasattr(finding, 'cvss_score') else finding.get('cvss_score')
+                    cvss = f" (CVSS: {cvss_score})" if cvss_score else ""
                     console.print(
-                        f"  {i}. [{color}]{finding.severity.upper()}[/{color}] "
-                        f"- {finding.title}{cve}{cvss}"
+                        f"  {i}. [{color}]{sev.upper()}[/{color}] "
+                        f"- {title}{cve}{cvss}"
                     )
         
         # Module execution summary

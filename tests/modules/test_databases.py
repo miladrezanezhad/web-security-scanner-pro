@@ -85,7 +85,27 @@ class TestMongoDB:
     def test_scanner_initialization(self, browser, sample_target, sample_config):
         """Test scanner initialization."""
         from modules.database.mongodb import Scanner
-        
+
+        scanner = Scanner(browser, sample_target, sample_config)
+        assert scanner is not None
+        assert hasattr(scanner, 'run')
+
+
+class TestElasticsearch:
+    """Test Elasticsearch scanner module."""
+
+    def test_module_imports(self):
+        """Test that Elasticsearch module can be imported."""
+        try:
+            from modules.database import elasticsearch
+            assert hasattr(elasticsearch, 'Scanner')
+        except ImportError as e:
+            pytest.fail(f"Failed to import Elasticsearch module: {e}")
+
+    def test_scanner_initialization(self, browser, sample_target, sample_config):
+        """Test scanner initialization."""
+        from modules.database.elasticsearch import Scanner
+
         scanner = Scanner(browser, sample_target, sample_config)
         assert scanner is not None
         assert hasattr(scanner, 'run')

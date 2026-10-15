@@ -85,7 +85,27 @@ class TestPlesk:
     def test_scanner_initialization(self, browser, sample_target, sample_config):
         """Test scanner initialization."""
         from modules.control_panels.plesk import Scanner
-        
+
+        scanner = Scanner(browser, sample_target, sample_config)
+        assert scanner is not None
+        assert hasattr(scanner, 'run')
+
+
+class TestVirtualmin:
+    """Test Virtualmin scanner module."""
+
+    def test_module_imports(self):
+        """Test that Virtualmin module can be imported."""
+        try:
+            from modules.control_panels import virtualmin
+            assert hasattr(virtualmin, 'Scanner')
+        except ImportError as e:
+            pytest.fail(f"Failed to import Virtualmin module: {e}")
+
+    def test_scanner_initialization(self, browser, sample_target, sample_config):
+        """Test scanner initialization."""
+        from modules.control_panels.virtualmin import Scanner
+
         scanner = Scanner(browser, sample_target, sample_config)
         assert scanner is not None
         assert hasattr(scanner, 'run')

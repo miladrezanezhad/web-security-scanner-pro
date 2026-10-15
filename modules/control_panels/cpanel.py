@@ -224,11 +224,18 @@ class Scanner:
     
     def _check_port(self, port: int) -> bool:
         """Check if port is open."""
+        sock = None
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(2)
             result = sock.connect_ex((self.hostname, port))
-            sock.close()
             return result == 0
-        except:
+        except (socket.error, OSError) as e:
+            logger.debug(f"Port check error {self.hostname}:{port} - {e}")
             return False
+        finally:
+            if sock:
+                try:
+                    sock.close()
+                except OSError:
+                    pass

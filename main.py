@@ -97,14 +97,14 @@ def show_modules_menu():
   35. DOM XSS (Client-Side XSS) 
 
 {Fore.GREEN}🔹 SSL & Security:{Style.RESET_ALL}
-  35. SSL/TLS Certificate
-  36. SSL Protocols
-  37. Security Headers
+  36. SSL/TLS Certificate
+  37. SSL Protocols
+  38. Security Headers
 
 {Fore.GREEN}🔹 API Security:{Style.RESET_ALL}
-  38. GraphQL
-  39. REST API
-  40. JWT Tokens
+  39. GraphQL
+  40. REST API
+  41. JWT Tokens
 
 {Fore.YELLOW}{'='*60}{Style.RESET_ALL}
 {Fore.CYAN}Enter numbers separated by commas (e.g., 1,15,26,37){Style.RESET_ALL}
@@ -148,10 +148,15 @@ def get_module_selection():
             for part in parts:
                 part = part.strip()
                 if '-' in part:
-                    start, end = part.split('-')
-                    for i in range(int(start), int(end) + 1):
-                        if str(i) in module_map:
-                            selected.append(module_map[str(i)])
+                    dash_parts = part.split('-')
+                    if len(dash_parts) == 2 and dash_parts[0].isdigit() and dash_parts[1].isdigit():
+                        start, end = int(dash_parts[0]), int(dash_parts[1])
+                        step = 1 if start <= end else -1
+                        for i in range(start, end + step, step):
+                            if str(i) in module_map:
+                                selected.append(module_map[str(i)])
+                    else:
+                        print(f"{Fore.RED}⚠ Invalid range: {part}{Style.RESET_ALL}")
                 elif part in module_map:
                     selected.append(module_map[part])
                 else:
@@ -195,22 +200,11 @@ def run_scan(target_url, selected_modules, config):
             
             # Run module
             module_result = scanner._run_module_sync(module_name)
-            
-            # Process result
+
+            # Process result using scanner's standard processor (wraps findings into Finding dataclasses)
             if module_result:
-                scanner.result.modules_run.append(module_name)
-                scanner.result.module_results[module_name] = module_result
-                
+                scanner._process_module_result(module_name, module_result)
                 findings = module_result.get('findings', [])
-                scanner.result.findings.extend(findings)
-                
-                # Count severities
-                for finding in findings:
-                    sev = finding.get('severity', 'info').lower() if isinstance(finding, dict) else finding.severity.lower()
-                    if sev in scanner.result.statistics:
-                        scanner.result.statistics[sev] += 1
-                    scanner.result.statistics['total'] += 1
-                
                 if findings:
                     print(f"{Fore.RED}⚠ {len(findings)} issues found{Style.RESET_ALL}")
                 else:

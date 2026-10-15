@@ -6,6 +6,8 @@ Fixed: File naming, multiple format generation, proper extensions.
 
 import os
 import json
+import html
+import uuid
 from datetime import datetime
 from typing import Dict, List, Optional
 from pathlib import Path
@@ -25,7 +27,13 @@ class ReportGenerator:
     """
     
     def __init__(self, scan_results, config: Dict):
-        self.results = scan_results
+        # Support both ScanResult object and dict
+        if hasattr(scan_results, 'to_dict'):
+            self.results = scan_results.to_dict()
+        elif isinstance(scan_results, dict):
+            self.results = scan_results
+        else:
+            self.results = getattr(scan_results, '__dict__', {})
         self.config = config
         
         # Get template directory
@@ -279,8 +287,8 @@ class ReportGenerator:
         # Generate HTML first
         html_content = self.html_template.render(**data)
         
-        # Save temporary HTML
-        temp_html = self.output_dir / "temp_for_pdf.html"
+        # Save temporary HTML with unique filename to prevent race conditions
+        temp_html = self.output_dir / f"temp_{uuid.uuid4().hex[:8]}.html"
         with open(temp_html, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
@@ -443,14 +451,14 @@ class ReportGenerator:
         
         html_parts = []
         for finding in sorted_findings:
-            severity = finding.get('severity', 'info')
-            title = finding.get('title', 'Untitled')
-            description = finding.get('description', '')
-            recommendation = finding.get('recommendation', '')
-            cve_id = finding.get('cve_id', '')
-            cvss_score = finding.get('cvss_score', '')
-            module = finding.get('module', 'Unknown')
-            
+            severity = html.escape(str(finding.get('severity', 'info')))
+            title = html.escape(str(finding.get('title', 'Untitled')))
+            description = html.escape(str(finding.get('description', ''))).replace('\n', '<br>')
+            recommendation = html.escape(str(finding.get('recommendation', ''))).replace('\n', '<br>')
+            cve_id = html.escape(str(finding.get('cve_id', ''))) if finding.get('cve_id') else ''
+            cvss_score = html.escape(str(finding.get('cvss_score', ''))) if finding.get('cvss_score') else ''
+            module = html.escape(str(finding.get('module', 'Unknown')))
+
             cve_badge = f' <span class="cve-badge">{cve_id}</span>' if cve_id else ''
             cvss_badge = f' <span class="cvss-badge">CVSS: {cvss_score}</span>' if cvss_score else ''
             

@@ -202,8 +202,7 @@ class Scanner:
                     "3. Validate and sanitize all user inputs\n"
                     "4. Use HttpOnly and Secure flags on cookies\n"
                     "5. Use modern frameworks with auto-escaping (React, Vue, Angular)\n"
-                    "6. Consider using DOMPurify for client-side sanitization\n"
-                    "7. Set X-XSS-Protection: 1; mode=block header"
+                    "6. Consider using DOMPurify for client-side sanitization"
                 ),
                 'module': self.module_name,
                 'cwe_id': 'CWE-79',

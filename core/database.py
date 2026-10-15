@@ -9,6 +9,7 @@ import os
 import re
 import json
 import time
+from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from pathlib import Path
 from packaging import version as pkg_version
@@ -78,6 +79,17 @@ class VulnerabilityDatabase:
                 value TEXT,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+
+            CREATE TABLE IF NOT EXISTS fingerprints (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                technology TEXT NOT NULL,
+                category TEXT NOT NULL,
+                pattern TEXT NOT NULL,
+                location TEXT DEFAULT 'header',
+                version_extraction TEXT,
+                confidence TEXT DEFAULT 'medium',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
         """)
         self.conn.commit()
     
@@ -92,8 +104,8 @@ class VulnerabilityDatabase:
         for idx in indexes:
             try:
                 self.cursor.execute(idx)
-            except:
-                pass
+            except sqlite3.Error as e:
+                logger.debug(f"Index creation note: {e}")
         self.conn.commit()
     
     def _check_and_seed(self):
@@ -144,14 +156,14 @@ class VulnerabilityDatabase:
         for v in vulns:
             try:
                 self.cursor.execute("""
-                    INSERT OR REPLACE INTO vulnerabilities 
-                    (id, category, component, title, description, affected_versions, 
-                     fixed_version, severity, cvss_score, cve_id, cwe_id, refs, 
+                    INSERT OR REPLACE INTO vulnerabilities
+                    (id, category, component, title, description, affected_versions,
+                     fixed_version, severity, cvss_score, cve_id, cwe_id, refs,
                      exploit_available, exploit_maturity, publish_date)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, v)
-            except:
-                pass
+            except sqlite3.Error as e:
+                logger.warning(f"Error seeding vulnerability {v[0]}: {e}")
         
         safe_versions = [
             ("WordPress", "6.x", "6.5.3", "6.5.3", False, "2026-05-01"),
@@ -202,7 +214,12 @@ class VulnerabilityDatabase:
             vuln = dict(row)
             if self._is_version_affected(version, vuln['affected_versions']):
                 vulnerable.append(vuln)
-        
+
+        # Evict oldest entries if cache exceeds 1000 items to prevent memory leaks
+        if len(self._query_cache) >= 1000:
+            oldest_key = min(self._query_cache.keys(), key=lambda k: self._query_cache[k][0])
+            del self._query_cache[oldest_key]
+
         self._query_cache[cache_key] = (time.time(), vulnerable)
         return vulnerable
     
@@ -226,11 +243,78 @@ class VulnerabilityDatabase:
         stats = {}
         self.cursor.execute("SELECT COUNT(*) FROM vulnerabilities")
         stats['total'] = self.cursor.fetchone()[0]
-        
+
         self.cursor.execute("SELECT severity, COUNT(*) as cnt FROM vulnerabilities GROUP BY severity")
         stats['by_severity'] = {row['severity']: row['cnt'] for row in self.cursor.fetchall()}
-        
+
+        # Load metadata
+        self.cursor.execute("SELECT key, value FROM metadata")
+        stats['metadata'] = {row['key']: row['value'] for row in self.cursor.fetchall()}
+
         return stats
+
+    def add_vulnerability(self, vuln_data: Dict) -> bool:
+        """
+        Add or update a vulnerability in the database.
+        Accepts dict or object with to_dict / attributes.
+        """
+        try:
+            if hasattr(vuln_data, 'to_dict'):
+                data = vuln_data.to_dict()
+            elif isinstance(vuln_data, dict):
+                data = vuln_data
+            else:
+                data = getattr(vuln_data, '__dict__', {})
+
+            self.cursor.execute("""
+                INSERT OR REPLACE INTO vulnerabilities
+                (id, category, component, title, description, affected_versions,
+                 fixed_version, severity, cvss_score, cve_id, cwe_id, refs,
+                 exploit_available, exploit_maturity, publish_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                data.get('id', data.get('cve_id', '')),
+                data.get('category', 'unknown'),
+                data.get('component', 'unknown'),
+                data.get('title', 'Untitled'),
+                data.get('description', ''),
+                data.get('affected_versions', 'all'),
+                data.get('fixed_version', ''),
+                data.get('severity', 'info'),
+                data.get('cvss_score', 0.0),
+                data.get('cve_id', ''),
+                data.get('cwe_id', ''),
+                data.get('refs', data.get('references', '')),
+                1 if data.get('exploit_available') else 0,
+                data.get('exploit_maturity', 'unknown'),
+                data.get('publish_date', '')
+            ))
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add vulnerability: {e}")
+            return False
+
+    def add_fingerprint(
+        self,
+        technology: str,
+        category: str,
+        pattern: str,
+        location: str = 'header',
+        version_extraction: Optional[str] = None,
+        confidence: str = 'medium'
+    ) -> bool:
+        """Add technology fingerprint signature."""
+        try:
+            self.cursor.execute("""
+                INSERT INTO fingerprints (technology, category, pattern, location, version_extraction, confidence)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (technology, category, pattern, location, version_extraction, confidence))
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to add fingerprint: {e}")
+            return False
     
     def _is_version_affected(self, version, affected_range):
         """Check if version is in affected range."""
@@ -271,8 +355,9 @@ class VulnerabilityDatabase:
                         return True
             
             return False
-        except:
-            return True
+        except Exception as e:
+            logger.debug(f"Version comparison error for {current_version} vs {affected_range}: {e}")
+            return False
     
     def close(self):
         """Close database connection."""

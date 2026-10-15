@@ -228,8 +228,8 @@ class Scanner:
                 'evidence': f"Method: {user_enum.get('method')}",
             })
         
-        result['findings'] = self.findings
-        
+        self.findings = result['findings']
+
         logger.info(
             f"{self.module_name} complete. "
             f"Detected: {result['drupal_detected']}, "

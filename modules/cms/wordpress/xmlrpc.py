@@ -37,16 +37,17 @@ class Scanner:
             'findings': []
         }
         
-        # Check if XML-RPC is accessible
+        # Check if XML-RPC is accessible (WordPress typically returns 200 with 'XML-RPC server accepts POST requests only' or 405 Method Not Allowed on GET)
         resp = self.browser.get('/xmlrpc.php')
-        if not resp or resp.status_code != 200:
-            result['findings'].append({
+        if not resp or resp.status_code not in [200, 405]:
+            self.findings.append({
                 'title': 'XML-RPC is not accessible',
                 'severity': 'info',
                 'description': 'XML-RPC endpoint is not available.',
                 'recommendation': 'No action needed.',
                 'module': self.module_name,
             })
+            result['findings'] = self.findings
             return result
         
         result['xmlrpc_enabled'] = True

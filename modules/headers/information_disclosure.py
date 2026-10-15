@@ -328,8 +328,8 @@ class Scanner:
                 'token': token,
             })
         
-        # Laravel debugbar
-        if 'X-Debug-Token' in all_headers:
+        # Laravel debugbar (only if not already matched as Symfony)
+        elif 'X-Debug-Token' in all_headers:
             token = all_headers['X-Debug-Token'][0]['value']
             debug_endpoints.append({
                 'header': 'X-Debug-Token',

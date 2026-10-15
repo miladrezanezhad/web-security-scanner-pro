@@ -25,6 +25,21 @@ __pycache__/
 *.sql
 *.sqlite3
 /Database/*.db
+*.db
+
+# Secrets & Environment
+.env
+.env.*
+*.pem
+*.key
+*.crt
+
+# Test & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
 
 # OS
 .DS_Store

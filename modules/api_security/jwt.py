@@ -245,8 +245,8 @@ class Scanner:
                         'evidence': f"Sensitive claims: {sensitive_claims}",
                     })
         
-        result['findings'] = self.findings
-        
+        self.findings = result['findings']
+
         logger.info(
             f"{self.module_name} complete. "
             f"Tokens found: {len(tokens)}, "

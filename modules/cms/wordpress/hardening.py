@@ -179,6 +179,10 @@ class Scanner:
         for file_path in self.sensitive_files:
             resp = self.browser.get(file_path)
             if resp and resp.status_code == 200:
+                # wp-config.php usually returns empty 200 upon PHP execution; only flag if PHP source is disclosed
+                if 'wp-config.php' in file_path:
+                    if 'DB_NAME' not in resp.text and 'DB_PASSWORD' not in resp.text:
+                        continue
                 content = resp.text[:200]
                 exposed.append({
                     'path': file_path,

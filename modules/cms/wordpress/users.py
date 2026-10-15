@@ -135,19 +135,30 @@ class Scanner:
         for author_id in range(1, 20):
             resp = self.browser.get(f'/?author={author_id}')
             if resp and resp.status_code in [200, 301]:
-                # Extract username from redirect URL or page content
+                # Extract username from final redirected URL, history, Location header, or page content
+                extracted = False
+                target_urls = [resp.url]
+                if hasattr(resp, 'history'):
+                    for h in resp.history:
+                        if 'Location' in h.headers:
+                            target_urls.append(h.headers['Location'])
                 if 'Location' in resp.headers:
-                    location = resp.headers['Location']
-                    username_match = re.search(r'/author/([^/]+)/', location)
+                    target_urls.append(resp.headers['Location'])
+
+                for loc in target_urls:
+                    username_match = re.search(r'/author/([^/?#]+)/?', loc)
                     if username_match:
                         users.append({
                             'username': username_match.group(1),
                             'id': author_id,
                             'method': 'author_archive',
                         })
-                else:
+                        extracted = True
+                        break
+
+                if not extracted:
                     # Check page content for author info
-                    username_match = re.search(r'author-(\w+)', resp.text)
+                    username_match = re.search(r'author-([\w-]+)', resp.text)
                     if username_match:
                         users.append({
                             'username': username_match.group(1),

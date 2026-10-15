@@ -178,14 +178,20 @@ class Scanner:
     def _test_dotnet_deserialization(self) -> List[Dict]:
         """Test for .NET ViewState deserialization vulnerabilities."""
         vulnerable = []
-        
+
         resp = self.browser.get('/')
         if resp and '__VIEWSTATE' in resp.text:
-            vulnerable.append({
-                'url': self.target_url,
-                'parameter': '__VIEWSTATE',
-                'type': 'dotnet_viewstate',
-                'evidence': 'ViewState parameter found in page',
-            })
-        
+            # Check if ViewState appears to be unencrypted or without MAC
+            viewstate_match = re.search(r'id="__VIEWSTATE"\s+value="([^"]+)"', resp.text)
+            if viewstate_match:
+                vs_val = viewstate_match.group(1)
+                # Unprotected viewstates usually start with /wEPDw
+                if vs_val.startswith('/wEPDw'):
+                    vulnerable.append({
+                        'url': self.target_url,
+                        'parameter': '__VIEWSTATE',
+                        'type': 'dotnet_viewstate',
+                        'evidence': f"Unencrypted ViewState pattern detected ({vs_val[:30]}...)",
+                    })
+
         return vulnerable

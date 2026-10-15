@@ -439,8 +439,8 @@ class Scanner:
                     'evidence': f"Dangerous mutations: {dangerous}",
                 })
         
-        result['findings'] = self.findings
-        
+        self.findings = result['findings']
+
         logger.info(
             f"{self.module_name} complete. "
             f"Endpoints: {len(endpoints)}, "
@@ -515,8 +515,8 @@ class Scanner:
             try:
                 test_query = json.dumps({'query': '{ __schema { queryType { name } } }'})
                 headers = {'Content-Type': 'application/json'}
-                
-                resp = self.browser.post(path, data=test_query)
+
+                resp = self.browser.post(path, data=test_query, custom_headers=headers)
                 
                 if resp and resp.status_code == 200:
                     try:

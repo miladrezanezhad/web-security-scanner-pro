@@ -193,32 +193,41 @@ class Scanner:
     
     def _check_port(self, port: int) -> bool:
         """Check if MySQL port is open."""
+        sock = None
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(3)
             result = sock.connect_ex((self.hostname, port))
-            sock.close()
-            
-            if result == 0:
-                # Try to get MySQL banner
-                try:
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sock.settimeout(3)
-                    sock.connect((self.hostname, port))
-                    banner = sock.recv(1024)
-                    sock.close()
-                    
-                    # MySQL handshake starts with packet length + protocol version
-                    if len(banner) > 4 and b'mysql' in banner.lower():
-                        return True
-                    # Even if we can't confirm MySQL, open port is a finding
+            if result != 0:
+                return False
+
+            # Port is open; attempt banner grab with new socket
+            banner_sock = None
+            try:
+                banner_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                banner_sock.settimeout(3)
+                banner_sock.connect((self.hostname, port))
+                banner = banner_sock.recv(1024)
+                if len(banner) > 4 and b'mysql' in banner.lower():
                     return True
-                except:
-                    return True  # Port is open
-            
+                return True
+            except (socket.error, OSError):
+                return True
+            finally:
+                if banner_sock:
+                    try:
+                        banner_sock.close()
+                    except OSError:
+                        pass
+        except (socket.error, OSError) as e:
+            logger.debug(f"MySQL port check error {self.hostname}:{port} - {e}")
             return False
-        except:
-            return False
+        finally:
+            if sock:
+                try:
+                    sock.close()
+                except OSError:
+                    pass
     
     def _check_error_disclosure(self) -> bool:
         """Check for MySQL errors in web responses."""

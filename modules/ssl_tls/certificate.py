@@ -209,8 +209,8 @@ class Scanner:
                         name.startswith('*.') for name in cert_info['subject_alt_names']
                     )
                     
-                    # Check self-signed
-                    if cert_info['subject'] == cert_info['issuer']:
+                    # Check self-signed only if subject is populated and equals issuer
+                    if cert_info['subject'] and cert_info['subject'] == cert_info['issuer']:
                         cert_info['is_self_signed'] = True
                     
                     # Analyze with cryptography library if available

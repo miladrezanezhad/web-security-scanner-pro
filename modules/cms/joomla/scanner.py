@@ -255,8 +255,8 @@ class Scanner:
                 'evidence': f"Debug indicator: {debug_check.get('indicator')}",
             })
         
-        result['findings'] = self.findings
-        
+        self.findings = result['findings']
+
         logger.info(
             f"{self.module_name} complete. "
             f"Detected: {result['joomla_detected']}, "

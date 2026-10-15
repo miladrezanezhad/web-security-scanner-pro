@@ -53,7 +53,7 @@ def run_pytest(test_path, verbose=False):
 def run_simple_module_test():
     """Run the simple module test without pytest dependency."""
     print_header("🧪 SIMPLE MODULE IMPORT TEST")
-    print("  Testing that all 40+ modules can be imported...")
+    print("  Testing that all 49 modules can be imported...")
     print()
     
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -123,6 +123,7 @@ def run_simple_module_test():
         ("File Upload", "modules.vulnerabilities.file_upload"),
         ("Deserialization", "modules.vulnerabilities.deserialization"),
         ("SSRF", "modules.vulnerabilities.ssrf"),
+        ("DOM XSS", "modules.vulnerabilities.dom_xss"),
         
         # SSL/TLS
         ("SSL Certificate", "modules.ssl_tls.certificate"),

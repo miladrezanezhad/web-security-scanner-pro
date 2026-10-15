@@ -292,14 +292,14 @@ class Scanner:
             Dict with 'vulnerable' bool and 'evidence' string
         """
         headers = {'Content-Type': content_type}
-        
+
         resp = None
         if method == 'post':
-            resp = self.browser.post(url, data=xml_payload)
+            resp = self.browser.post(url, data=xml_payload, headers=headers)
         elif method == 'put':
-            resp = self.browser.post(url, data=xml_payload)  # Fallback
+            resp = self.browser.post(url, data=xml_payload, headers=headers)  # Fallback
         else:
-            resp = self.browser.get(url, params={'xml': xml_payload})
+            resp = self.browser.get(url, params={'xml': xml_payload}, headers=headers)
         
         if not resp or resp.status_code == 0:
             return {'vulnerable': False, 'evidence': ''}

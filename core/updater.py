@@ -238,9 +238,7 @@ class DatabaseUpdater:
                     }
                     
                     # Add to database
-                    from core.database import Vulnerability
-                    vuln = Vulnerability(**vuln_data)
-                    if self.db.add_vulnerability(vuln):
+                    if self.db.add_vulnerability(vuln_data):
                         count += 1
                 
                 logger.info(f"Processed {len(vulnerabilities)} CVEs from NVD, added {count}")
@@ -300,9 +298,7 @@ class DatabaseUpdater:
                         'publish_date': item.get('published_date', ''),
                     }
                     
-                    from core.database import Vulnerability
-                    vuln = Vulnerability(**vuln_data)
-                    if self.db.add_vulnerability(vuln):
+                    if self.db.add_vulnerability(vuln_data):
                         count += 1
             
             # Get plugin vulnerabilities
@@ -335,9 +331,7 @@ class DatabaseUpdater:
                         'publish_date': item.get('published_date', ''),
                     }
                     
-                    from core.database import Vulnerability
-                    vuln = Vulnerability(**vuln_data)
-                    if self.db.add_vulnerability(vuln):
+                    if self.db.add_vulnerability(vuln_data):
                         count += 1
             
             logger.info(f"Processed WPScan data, added {count} vulnerabilities")
@@ -374,13 +368,18 @@ class DatabaseUpdater:
                 
                 # Get vulnerabilities dict
                 vuln_dict = getattr(module, 'VULNERABILITIES', None)
-                if vuln_dict:
+                if not vuln_dict:
+                    # Also look for VULNERABILITIES_YYYY pattern
+                    for attr_name in dir(module):
+                        if attr_name.startswith('VULNERABILITIES_'):
+                            vuln_dict = getattr(module, attr_name, None)
+                            break
+
+                if vuln_dict and isinstance(vuln_dict, dict):
                     for category, vulns in vuln_dict.items():
                         for vuln in vulns:
-                            from core.database import Vulnerability
                             try:
-                                vuln_obj = Vulnerability(**vuln)
-                                if self.db.add_vulnerability(vuln_obj):
+                                if self.db.add_vulnerability(vuln):
                                     count += 1
                             except Exception as e:
                                 logger.warning(f"Failed to add vulnerability: {e}")

@@ -244,8 +244,8 @@ class Scanner:
                 'cvss_score': 3.0,
             })
         
-        result['findings'] = self.findings
-        
+        self.findings = result['findings']
+
         logger.info(
             f"{self.module_name} complete. "
             f"Endpoints: {len(endpoints)}, "

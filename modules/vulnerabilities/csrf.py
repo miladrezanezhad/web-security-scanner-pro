@@ -288,12 +288,33 @@ class Scanner:
         if not resp:
             return analysis
         
-        # Parse Set-Cookie headers from response
+        # Parse Set-Cookie from response using requests cookiejar or header
+        if hasattr(resp, 'cookies') and resp.cookies:
+            cookie_items = list(resp.cookies.items())
+            analysis['total_cookies'] = len(cookie_items)
+            for c_name, _ in cookie_items:
+                c_name_lower = c_name.lower()
+                session_indicators = ['session', 'sess', 'sid', 'auth', 'token', 'jwt']
+                if any(indicator in c_name_lower for indicator in session_indicators):
+                    analysis['session_cookies'].append(c_name)
+                    # Check raw header for this cookie's SameSite
+                    raw_cookie = resp.headers.get('Set-Cookie', '')
+                    if 'samesite' not in raw_cookie.lower():
+                        analysis['missing_samesite'].append(c_name)
+                    elif 'samesite=lax' in raw_cookie.lower():
+                        analysis['samesite_lax'].append(c_name)
+                    elif 'samesite=strict' in raw_cookie.lower():
+                        analysis['samesite_strict'].append(c_name)
+                    elif 'samesite=none' in raw_cookie.lower():
+                        analysis['samesite_none'].append(c_name)
+            return analysis
+
         cookies = resp.headers.get('Set-Cookie', '')
         if not cookies:
             return analysis
-        
-        cookie_list = cookies.split(',')
+
+        # Fallback regex-based split that respects expires date commas
+        cookie_list = re.split(r',(?=\s*[A-Za-z0-9_\-]+=)', cookies)
         analysis['total_cookies'] = len(cookie_list)
         
         for cookie_str in cookie_list:

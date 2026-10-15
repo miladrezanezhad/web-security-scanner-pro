@@ -79,7 +79,7 @@ class Scanner:
                 'cvss_score': 7.5,
             })
         
-        result['findings'] = self.findings
+        self.findings = result['findings']
         return result
     
     def _detect_iis(self) -> Dict:

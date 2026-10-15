@@ -8,7 +8,9 @@ References:
     - CWE-306: Missing Authentication for Critical Function
 """
 
+import re
 import socket
+import struct
 from typing import Dict, List, Optional
 from urllib.parse import urlparse
 from loguru import logger
@@ -183,18 +185,19 @@ class Scanner:
             query += b'\x01\x00\x00\x00' # Value: 1
             query += b'\x00'             # End of document
             
-            msg = msg[:4] + struct.pack('<i', len(msg) - 4 + len(query)) + msg[8:] + query
-            
+            # Wire Protocol packet construction
+            total_len = len(msg) + len(query)
+            msg = struct.pack('<i', total_len) + msg[4:] + query
+
             sock.send(msg)
             response = sock.recv(4096)
             sock.close()
-            
+
             if len(response) > 0:
                 # Parse response for version info
                 response_str = response.decode('utf-8', errors='ignore')
-                
+
                 version = None
-                import re
                 version_match = re.search(r'version.*?([\d.]+)', response_str)
                 if version_match:
                     version = version_match.group(1)

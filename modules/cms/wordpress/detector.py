@@ -10,6 +10,7 @@ References:
 """
 
 import re
+import json
 import hashlib
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urljoin
@@ -296,11 +297,10 @@ class Scanner:
         resp = self.browser.get('/wp-json/')
         if resp and resp.status_code == 200:
             try:
-                import json
                 data = json.loads(resp.text)
                 if isinstance(data, dict) and 'namespaces' in data:
                     result['detected'] = True
-            except:
+            except (json.JSONDecodeError, ValueError):
                 pass
         
         return result
