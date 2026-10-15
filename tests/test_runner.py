@@ -124,7 +124,9 @@ def run_simple_module_test():
         ("Deserialization", "modules.vulnerabilities.deserialization"),
         ("SSRF", "modules.vulnerabilities.ssrf"),
         ("DOM XSS", "modules.vulnerabilities.dom_xss"),
-        
+        ("Sensitive Files & Secrets", "modules.vulnerabilities.sensitive_files"),
+        ("Broken Access Control & Logic", "modules.vulnerabilities.access_control"),
+
         # SSL/TLS
         ("SSL Certificate", "modules.ssl_tls.certificate"),
         ("SSL Protocols", "modules.ssl_tls.protocols"),
@@ -138,6 +140,12 @@ def run_simple_module_test():
         ("GraphQL", "modules.api_security.graphql"),
         ("REST API", "modules.api_security.rest_api"),
         ("JWT Tokens", "modules.api_security.jwt"),
+
+        # Template Engine
+        ("YAML Template Scanner", "core.templates"),
+
+        # Web Spider & Asset Discovery
+        ("Web Spider & Asset Discovery", "core.crawler"),
     ]
     
     passed = 0

@@ -36,6 +36,7 @@ class DatabaseUpdater:
     UPDATE_SOURCES = {
         'nvd': 'https://services.nvd.nist.gov/rest/json/cves/2.0',
         'wpscan': 'https://wpscan.com/api/v3',
+        'cisa_kev': 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json',
         'github_advisories': 'https://api.github.com/advisories',
         'local': 'database/',
     }
@@ -121,7 +122,23 @@ class DatabaseUpdater:
                 logger.info(f"WPScan update: {count} vulnerabilities")
             except Exception as e:
                 logger.error(f"WPScan update failed: {e}")
-        
+
+        # Update from CISA KEV (Known Exploited Vulnerabilities - Free live catalog)
+        try:
+            count = self._update_from_cisa_kev()
+            total_count += count
+            logger.info(f"CISA KEV update: {count} active vulnerabilities")
+        except Exception as e:
+            logger.error(f"CISA KEV update failed: {e}")
+
+        # Update from GitHub Security Advisory API (Open source advisories)
+        try:
+            count = self._update_from_github_advisory()
+            total_count += count
+            logger.info(f"GitHub Advisories update: {count} vulnerabilities")
+        except Exception as e:
+            logger.error(f"GitHub Advisories update failed: {e}")
+
         # Update from local files
         try:
             count = self._update_from_local()
@@ -388,7 +405,136 @@ class DatabaseUpdater:
                 logger.error(f"Error processing {file_path}: {e}")
         
         return count
-    
+
+    def _update_from_cisa_kev(self) -> int:
+        """
+        Update vulnerabilities from CISA Known Exploited Vulnerabilities (KEV) catalog.
+        Free, reliable public feed with zero authentication requirements.
+        """
+        count = 0
+        try:
+            logger.info("Fetching CISA Known Exploited Vulnerabilities (KEV)...")
+            response = requests.get(
+                self.UPDATE_SOURCES['cisa_kev'],
+                headers={'User-Agent': 'WebSecurityAnalyzerPro/3.0'},
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                vulnerabilities = data.get('vulnerabilities', [])
+
+                # Filter web-relevant vulnerabilities
+                web_vendors = ['apache', 'nginx', 'microsoft', 'php', 'wordpress', 'drupal', 'joomla', 'oracle', 'atlassian', 'spring', 'f5', 'citrix']
+
+                for item in vulnerabilities:
+                    cve_id = item.get('cveID', '')
+                    vendor = item.get('vendorProject', '').lower()
+                    product = item.get('product', '')
+                    notes = item.get('shortDescription', '')
+
+                    # Determine if vendor/product is web-related
+                    is_web = any(w in vendor or w in product.lower() or w in notes.lower() for w in web_vendors)
+                    if not is_web:
+                        continue
+
+                    category = 'webserver'
+                    if 'wordpress' in vendor or 'drupal' in vendor or 'joomla' in vendor:
+                        category = 'cms'
+                    elif 'php' in vendor:
+                        category = 'php'
+
+                    vuln_data = {
+                        'id': cve_id,
+                        'category': category,
+                        'component': product or vendor.capitalize(),
+                        'vendor': item.get('vendorProject', 'Unknown'),
+                        'title': f"{item.get('vulnerabilityName', 'CISA KEV Exploited Vulnerability')} ({cve_id})",
+                        'description': item.get('shortDescription', ''),
+                        'affected_versions': 'all',
+                        'fixed_version': '',
+                        'severity': 'critical',
+                        'cvss_score': 9.8,
+                        'cve_id': cve_id,
+                        'cwe_id': item.get('cwes', ['CWE-200'])[0] if isinstance(item.get('cwes'), list) and item.get('cwes') else 'CWE-200',
+                        'references': f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+                        'exploit_available': True,
+                        'exploit_maturity': 'active_exploitation_in_the_wild',
+                        'publish_date': item.get('dateAdded', '')[:10],
+                    }
+
+                    if self.db.add_vulnerability(vuln_data):
+                        count += 1
+
+                logger.info(f"Processed CISA KEV catalog, added {count} active in-the-wild web vulnerabilities")
+            else:
+                logger.warning(f"CISA KEV API returned HTTP {response.status_code}")
+        except Exception as e:
+            logger.error(f"CISA KEV update failed: {e}")
+
+        return count
+
+    def _update_from_github_advisory(self) -> int:
+        """
+        Update vulnerabilities from GitHub Advisory Database public REST API.
+        Covers modern open source packages (npm, pip, composer, etc.).
+        """
+        count = 0
+        try:
+            logger.info("Fetching public advisories from GitHub Security Advisory API...")
+            headers = {
+                'Accept': 'application/vnd.github+json',
+                'User-Agent': 'WebSecurityAnalyzerPro/3.0'
+            }
+            # Fetch high and critical web advisories
+            params = {
+                'severity': 'critical',
+                'per_page': 50
+            }
+            response = requests.get(
+                self.UPDATE_SOURCES['github_advisories'],
+                headers=headers,
+                params=params,
+                timeout=30
+            )
+
+            if response.status_code == 200:
+                advisories = response.json()
+                for adv in advisories:
+                    cve_id = adv.get('cve_id') or adv.get('ghsa_id', '')
+                    package = adv.get('vulnerabilities', [{}])[0].get('package', {}).get('name', 'Unknown')
+                    ecosystem = adv.get('vulnerabilities', [{}])[0].get('package', {}).get('ecosystem', 'pip')
+
+                    vuln_data = {
+                        'id': adv.get('ghsa_id', cve_id),
+                        'category': 'api_security' if ecosystem in ['npm', 'composer'] else 'vulnerabilities',
+                        'component': package,
+                        'vendor': ecosystem,
+                        'title': adv.get('summary', 'GitHub Security Advisory'),
+                        'description': adv.get('description', '')[:500],
+                        'affected_versions': adv.get('vulnerabilities', [{}])[0].get('vulnerable_version_range', 'all'),
+                        'fixed_version': adv.get('vulnerabilities', [{}])[0].get('first_patched_version', ''),
+                        'severity': adv.get('severity', 'high').lower(),
+                        'cvss_score': adv.get('cvss', {}).get('score', 9.0) if adv.get('cvss') else 9.0,
+                        'cve_id': adv.get('cve_id', ''),
+                        'cwe_id': adv.get('cwes', [{'cwe_id': 'CWE-200'}])[0].get('cwe_id', 'CWE-200') if adv.get('cwes') else 'CWE-200',
+                        'references': adv.get('html_url', ''),
+                        'exploit_available': True,
+                        'exploit_maturity': 'proof_of_concept',
+                        'publish_date': adv.get('published_at', '')[:10],
+                    }
+
+                    if self.db.add_vulnerability(vuln_data):
+                        count += 1
+
+                logger.info(f"Processed GitHub Advisories, added {count} vulnerabilities")
+            else:
+                logger.warning(f"GitHub Advisories API returned HTTP {response.status_code}")
+        except Exception as e:
+            logger.error(f"GitHub Advisories update failed: {e}")
+
+        return count
+
     def update_signatures(self) -> int:
         """
         Update technology fingerprints/signatures.

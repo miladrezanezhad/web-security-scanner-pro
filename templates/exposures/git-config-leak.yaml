@@ -1,0 +1,27 @@
+id: git-config-leak
+info:
+  name: Git Configuration and Repository Exposure
+  author: Milad Rezanezhad
+  severity: critical
+  description: The .git/config file was found exposed, leaking repository origin URLs, private credentials, and branch architecture.
+  reference:
+    - https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/05-Enumerate_Infrastructure_and_Application_Admin_Interfaces
+  cwe_id: CWE-538
+  cvss_score: 9.8
+  recommendation: Block public HTTP access to all hidden .git folders and files in your web server configuration.
+
+requests:
+  - method: GET
+    path:
+      - "/.git/config"
+    matchers_condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+      - type: word
+        part: body
+        words:
+          - "[core]"
+          - "repositoryformatversion"
+        condition: and

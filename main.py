@@ -17,6 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from core.scanner import SecurityScanner
 from core.reporter import ReportGenerator
+from core.notifier import Notifier
+from core.updater import DatabaseUpdater
 
 
 def load_config():
@@ -94,17 +96,25 @@ def show_modules_menu():
   32. Command Injection
   33. File Upload
   34. SSRF (Server-Side Request Forgery)
-  35. DOM XSS (Client-Side XSS) 
+  35. DOM XSS (Client-Side XSS)
+  36. Sensitive Files & Secrets (.env, .git, backups)
+  37. Broken Access Control & Logic (IDOR, Method Tampering, CORS)
 
 {Fore.GREEN}🔹 SSL & Security:{Style.RESET_ALL}
-  36. SSL/TLS Certificate
-  37. SSL Protocols
-  38. Security Headers
+  38. SSL/TLS Certificate
+  39. SSL Protocols
+  40. Security Headers
 
 {Fore.GREEN}🔹 API Security:{Style.RESET_ALL}
-  39. GraphQL
-  40. REST API
-  41. JWT Tokens
+  41. GraphQL
+  42. REST API
+  43. JWT Tokens
+
+{Fore.GREEN}🔹 Template-Based Scans (Nuclei-style YAML):{Style.RESET_ALL}
+  44. Community & CVE YAML Templates
+
+{Fore.GREEN}🔹 Crawling & Reconnaissance:{Style.RESET_ALL}
+  45. Smart Web Spider & Asset Discovery (Forms, Subdomains, JS Routes)
 
 {Fore.YELLOW}{'='*60}{Style.RESET_ALL}
 {Fore.CYAN}Enter numbers separated by commas (e.g., 1,15,26,37){Style.RESET_ALL}
@@ -126,9 +136,11 @@ def get_module_selection():
         '23': 'cpanel', '24': 'directadmin', '25': 'plesk',
         '26': 'xss', '27': 'sqli', '28': 'lfi', '29': 'xxe',
         '30': 'ssti', '31': 'csrf', '32': 'command_injection',
-        '33': 'file_upload', '34': 'ssrf', '35': 'dom_xss',
-        '36': 'ssl', '37': 'ssl_protocols', '38': 'headers',
-        '39': 'graphql', '40': 'rest_api', '41': 'jwt',
+        '33': 'file_upload', '34': 'ssrf', '35': 'dom_xss', '36': 'sensitive_files',
+        '37': 'access_control',
+        '38': 'ssl', '39': 'ssl_protocols', '40': 'headers',
+        '41': 'graphql', '42': 'rest_api', '43': 'jwt',
+        '44': 'templates', '45': 'crawler',
     }
     
     while True:
@@ -224,7 +236,18 @@ def run_scan(target_url, selected_modules, config):
     print(f"   Duration: {scan_duration:.1f} seconds")
     print(f"   Total findings: {scanner.result.statistics.get('total', 0)}")
     print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
-    
+
+    # Send webhooks if configured
+    notifier = Notifier(config)
+    if notifier.enabled:
+        print(f"\n{Fore.CYAN}📤 Sending notifications...{Style.RESET_ALL}")
+        notif_results = notifier.send_scan_summary(scanner.result)
+        for channel, success in notif_results.items():
+            if success:
+                print(f"   {Fore.GREEN}✓ {channel.capitalize()} notification sent{Style.RESET_ALL}")
+            else:
+                print(f"   {Fore.RED}✗ {channel.capitalize()} notification failed{Style.RESET_ALL}")
+
     return scanner.result
 
 
@@ -237,21 +260,23 @@ def save_report_dialog(result, config):
     print(f"{Fore.GREEN}2.{Style.RESET_ALL} 📝 Markdown Report")
     print(f"{Fore.GREEN}3.{Style.RESET_ALL} 📋 JSON Report")
     print(f"{Fore.GREEN}4.{Style.RESET_ALL} 📕 PDF Report")
-    print(f"{Fore.GREEN}5.{Style.RESET_ALL} 📦 All Formats")
+    print(f"{Fore.GREEN}5.{Style.RESET_ALL} 🛡️ SARIF Report (GitHub Security & CI/CD)")
+    print(f"{Fore.GREEN}6.{Style.RESET_ALL} 📦 All Formats")
     print(f"{Fore.RED}0.{Style.RESET_ALL} 🔙 Skip - Don't Save\n")
-    
+
     choice = input(f"{Fore.CYAN}Select format: {Style.RESET_ALL}").strip()
-    
+
     if choice == '0' or not choice:
         print(f"{Fore.YELLOW}⚠ Report not saved{Style.RESET_ALL}")
         return
-    
+
     format_map = {
         '1': 'html',
         '2': 'markdown',
         '3': 'json',
         '4': 'pdf',
-        '5': 'all'
+        '5': 'sarif',
+        '6': 'all'
     }
     
     selected_format = format_map.get(choice)
@@ -336,6 +361,8 @@ def main():
         print(f"{Fore.GREEN}1.{Style.RESET_ALL} 🔍 Start New Scan")
         print(f"{Fore.GREEN}2.{Style.RESET_ALL} 📊 Save Report from Last Scan")
         print(f"{Fore.GREEN}3.{Style.RESET_ALL} 📋 Show Last Results")
+        print(f"{Fore.GREEN}4.{Style.RESET_ALL} 🔄 Update CVE Database (CISA KEV, GitHub, WPScan)")
+        print(f"{Fore.GREEN}5.{Style.RESET_ALL} 🔑 Configure Auth & Whitelist Headers (WAF Bypass)")
         print(f"{Fore.RED}0.{Style.RESET_ALL} 🚪 Exit\n")
         
         choice = input(f"{Fore.CYAN}🎯 Select option: {Style.RESET_ALL}").strip()
@@ -382,6 +409,49 @@ def main():
             else:
                 print(f"{Fore.YELLOW}⚠ No scan results available.{Style.RESET_ALL}")
             input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+
+        elif choice == '4':
+            print(f"\n{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}🔄 UPDATING VULNERABILITY DATABASE{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+            print("Connecting to live security feeds (CISA KEV, GitHub Advisories, Local DB)...")
+            try:
+                updater = DatabaseUpdater(config)
+                total_updated = updater.update_all()
+                print(f"\n{Fore.GREEN}✅ Database updated successfully! Added/verified {total_updated} vulnerabilities.{Style.RESET_ALL}")
+            except Exception as e:
+                print(f"\n{Fore.RED}❌ Update failed: {e}{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
+
+        elif choice == '5':
+            print(f"\n{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}🔑 AUTH & WHITELIST HEADERS CONFIGURATION{Style.RESET_ALL}")
+            print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
+            print("Configure custom headers and cookies to bypass Cloudflare/WAF or scan logged-in areas.\n")
+
+            auth_cfg = config.get('authentication', {})
+            header_name = input(f"{Fore.CYAN}Enter Whitelist Header Name (e.g., X-Scanner-Auth) [leave empty to skip]: {Style.RESET_ALL}").strip()
+            if header_name:
+                header_val = input(f"{Fore.CYAN}Enter Secret Value for '{header_name}': {Style.RESET_ALL}").strip()
+                if 'custom_headers' not in auth_cfg:
+                    auth_cfg['custom_headers'] = {}
+                auth_cfg['custom_headers'][header_name] = header_val
+
+            bearer = input(f"{Fore.CYAN}Enter Bearer Token (JWT/OAuth) [leave empty to skip]: {Style.RESET_ALL}").strip()
+            if bearer:
+                auth_cfg['bearer_token'] = bearer
+
+            cookie_raw = input(f"{Fore.CYAN}Enter Cookie (name=value) [leave empty to skip]: {Style.RESET_ALL}").strip()
+            if '=' in cookie_raw:
+                c_name, c_val = cookie_raw.split('=', 1)
+                if 'cookies' not in auth_cfg:
+                    auth_cfg['cookies'] = {}
+                auth_cfg['cookies'][c_name.strip()] = c_val.strip()
+
+            auth_cfg['enabled'] = True
+            config['authentication'] = auth_cfg
+            print(f"\n{Fore.GREEN}✅ Whitelisting & Auth headers updated for this session!{Style.RESET_ALL}")
+            input(f"\n{Fore.CYAN}Press Enter to continue...{Style.RESET_ALL}")
         
         else:
             print(f"{Fore.RED}⚠ Invalid option{Style.RESET_ALL}")
@@ -389,6 +459,18 @@ def main():
 
 if __name__ == '__main__':
     try:
+        # CLI direct flags support
+        if len(sys.argv) > 1:
+            arg = sys.argv[1].lower()
+            if arg in ['update', '--update', '-u']:
+                print_banner()
+                print("🔄 Running direct database update...")
+                conf = load_config()
+                updater = DatabaseUpdater(conf)
+                res = updater.update_all()
+                print(f"✅ Updated {res} vulnerabilities.")
+                sys.exit(0)
+
         main()
     except KeyboardInterrupt:
         print(f"\n\n{Fore.YELLOW}👋 Program terminated by user{Style.RESET_ALL}\n")

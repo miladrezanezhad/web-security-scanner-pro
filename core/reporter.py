@@ -110,8 +110,10 @@ class ReportGenerator:
             return self._generate_html(data, output_path, filename)
         elif format == 'pdf':
             return self._generate_pdf(data, output_path, filename)
+        elif format == 'sarif':
+            return self._generate_sarif(data, output_path, filename)
         else:
-            raise ValueError(f"Unsupported format: {format}. Use: html, pdf, markdown, json")
+            raise ValueError(f"Unsupported format: {format}. Use: html, pdf, markdown, json, sarif")
     
     def generate_all(
         self, 
@@ -129,7 +131,7 @@ class ReportGenerator:
         logger.info("Generating reports in all formats...")
         
         paths = {}
-        formats = ['html', 'pdf', 'markdown', 'json']
+        formats = ['html', 'pdf', 'markdown', 'json', 'sarif']
         
         for fmt in formats:
             try:
@@ -264,6 +266,101 @@ class ReportGenerator:
         
         # Save file
         return self._save_file(json_content, file_path)
+
+    def _generate_sarif(self, data: Dict, output_path: Optional[str], filename: Optional[str]) -> str:
+        """
+        Generate SARIF (Static Analysis Results Interchange Format) v2.1.0 report.
+        Allows native ingestion by GitHub Advanced Security and enterprise SIEM/DevSecOps tools.
+        """
+        rules = []
+        rule_indices = {}
+        results = []
+
+        # Map WSA severities to SARIF levels
+        level_map = {
+            'critical': 'error',
+            'high': 'error',
+            'medium': 'warning',
+            'low': 'note',
+            'info': 'note'
+        }
+
+        findings = self.results.get('findings', [])
+        for f in findings:
+            if hasattr(f, 'to_dict'):
+                finding_data = f.to_dict()
+            elif isinstance(f, dict):
+                finding_data = f
+            else:
+                finding_data = getattr(f, '__dict__', {})
+
+            rule_id = finding_data.get('cve_id') or finding_data.get('cwe_id') or f"WSA-{finding_data.get('module', 'GENERIC').upper()}"
+            title = finding_data.get('title', 'Security Finding')
+            description = finding_data.get('description', '')
+            recommendation = finding_data.get('recommendation', '')
+            severity = finding_data.get('severity', 'info').lower()
+            cvss = finding_data.get('cvss_score')
+
+            if rule_id not in rule_indices:
+                rule_indices[rule_id] = len(rules)
+                rule_def = {
+                    'id': rule_id,
+                    'name': title,
+                    'shortDescription': {'text': title},
+                    'fullDescription': {'text': description or title},
+                    'help': {
+                        'text': f"Recommendation:\n{recommendation}" if recommendation else "No recommendation provided.",
+                        'markdown': f"### Recommendation\n{recommendation}" if recommendation else ""
+                    },
+                    'properties': {
+                        'tags': ['security', finding_data.get('module', 'web')],
+                        'precision': 'high'
+                    }
+                }
+                if cvss:
+                    rule_def['properties']['security-severity'] = str(cvss)
+                rules.append(rule_def)
+
+            sarif_result = {
+                'ruleId': rule_id,
+                'ruleIndex': rule_indices[rule_id],
+                'level': level_map.get(severity, 'warning'),
+                'message': {
+                    'text': f"{title}\n{description}"
+                },
+                'locations': [
+                    {
+                        'physicalLocation': {
+                            'artifactLocation': {
+                                'uri': self.results.get('target_url', 'target_uri')
+                            }
+                        }
+                    }
+                ]
+            }
+            results.append(sarif_result)
+
+        sarif_doc = {
+            '$schema': 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
+            'version': '2.1.0',
+            'runs': [
+                {
+                    'tool': {
+                        'driver': {
+                            'name': 'Web Security Analyzer Pro',
+                            'version': '3.0.0',
+                            'informationUri': 'https://github.com/miladrezanezhad/web-security-scanner-pro',
+                            'rules': rules
+                        }
+                    },
+                    'results': results
+                }
+            ]
+        }
+
+        sarif_content = json.dumps(sarif_doc, indent=2, ensure_ascii=False)
+        file_path = self._get_output_path('sarif', output_path, filename)
+        return self._save_file(sarif_content, file_path)
     
     def _generate_pdf(self, data: Dict, output_path: Optional[str], filename: Optional[str]) -> str:
         """Generate PDF report from HTML template."""

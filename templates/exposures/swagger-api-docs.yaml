@@ -1,0 +1,29 @@
+id: swagger-api-docs-exposure
+info:
+  name: Swagger / OpenAPI Documentation Publicly Exposed
+  author: Milad Rezanezhad
+  severity: low
+  description: Public exposure of API documentation aids attackers in identifying endpoints, parameters, and business logic.
+  reference:
+    - https://owasp.org/www-project-api-security/
+  cwe_id: CWE-200
+  cvss_score: 3.5
+  recommendation: Restrict access to Swagger UI and OpenAPI JSON definitions behind authentication in production.
+
+requests:
+  - method: GET
+    path:
+      - "/swagger.json"
+      - "/v2/api-docs"
+      - "/openapi.json"
+    matchers_condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+      - type: word
+        part: body
+        words:
+          - '"swagger":'
+          - '"openapi":'
+        condition: or

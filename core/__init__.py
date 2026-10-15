@@ -24,6 +24,10 @@ from core.evasion import EvasionEngine, EvasionConfig, ScanMode
 from core.database import VulnerabilityDatabase
 from core.reporter import ReportGenerator
 from core.updater import DatabaseUpdater
+from core.notifier import Notifier
+from core.templates import TemplateScanner
+from core.crawler import WebCrawler
+from core.oob import OOBEngine
 
 # Lazy import for APIServer to allow running core without FastAPI installed
 try:
@@ -42,5 +46,9 @@ __all__ = [
     "VulnerabilityDatabase",
     "ReportGenerator",
     "DatabaseUpdater",
+    "Notifier",
+    "TemplateScanner",
+    "WebCrawler",
+    "OOBEngine",
     "APIServer",
 ]

@@ -49,7 +49,7 @@ This tool is designed for **legitimate security testing only**.
 
 ## 📊 Features
 
-### Security Modules (49 Total)
+### Security Modules (53 Total)
 
 | Category | Count | Modules |
 |----------|:-----:|---------|
@@ -58,10 +58,12 @@ This tool is designed for **legitimate security testing only**.
 | **PHP** | 4 | Version, Config, Dangerous Functions, Info |
 | **Databases** | 5 | MySQL, PostgreSQL, Redis, MongoDB, Elasticsearch |
 | **Control Panels** | 4 | cPanel, DirectAdmin, Plesk, Virtualmin |
-| **Vulnerabilities** | 12 | XSS, SQLi (Advanced), DOM XSS, LFI, RFI, XXE, SSTI, CSRF, Command Injection, File Upload, SSRF, Deserialization |
+| **Vulnerabilities** | 14 | XSS, SQLi (Advanced), DOM XSS, Sensitive Files & Secrets, Broken Access Control & IDOR, LFI, RFI, XXE, SSTI, CSRF, Command Injection, File Upload, SSRF, Deserialization |
 | **SSL/TLS** | 3 | Certificate, Protocols, Ciphers |
 | **Headers** | 2 | Security Headers, Information Disclosure |
 | **API Security** | 3 | GraphQL, REST API, JWT |
+| **Templates** | 1 | Declarative YAML Templates (Nuclei-style engine) |
+| **Spider & Recon** | 1 | Smart Web Spider & Asset Discovery (Forms, Subdomains, JS Routes) |
 
 ### Advanced SQL Injection Scanner
 - **Error-based** — Detects injection from database error messages
@@ -70,7 +72,8 @@ This tool is designed for **legitimate security testing only**.
 - **UNION-based** — Automatic column count detection via ORDER BY
 - **Database fingerprinting** — Identifies MySQL, PostgreSQL, MSSQL, Oracle, SQLite
 
-### Evasion Engine
+### Evasion & Authentication Engine
+- **Whitelisted & Authenticated Audits** — Custom WAF bypass headers (e.g. `X-Scanner-Auth`), Bearer tokens, and session cookies
 - **User-Agent rotation** — 15+ real browser profiles
 - **Smart rate limiting** — Configurable delays with random jitter
 - **WAF detection** — Identifies Cloudflare, Sucuri, Wordfence, AWS WAF, ModSecurity, Akamai, Imperva
@@ -78,17 +81,20 @@ This tool is designed for **legitimate security testing only**.
 - **Exponential backoff** — Automatic retry with increasing delays
 - **Proxy support** — HTTP, HTTPS, SOCKS5, Tor network
 
-### Reporting
+### Reporting & Notifications
 - **HTML** — Interactive charts, collapsible sections, responsive design
+- **SARIF v2.1.0** — OASIS standard for GitHub Advanced Security, GitLab, and DevSecOps pipelines
 - **PDF** — Professional layout, A4 formatted, print-ready
 - **Markdown** — GitHub-compatible, plain text, version control friendly
 - **JSON** — Machine-readable, API integration, CI/CD ready
+- **Webhooks** — Instant alert dispatching to Discord, Slack, and Telegram for critical findings
 
 ### Additional Features
-- **Built-in CVE database** — 2024-2026 vulnerabilities with CVSS scores
+- **Out-of-Band (OOB) Testing** — Real-time callback interaction engine to detect Blind SSRF, Blind RCE, and Blind XXE
+- **Live CVE Feeds & Auto-Update** — Daily synchronization with CISA KEV (Known Exploited Vulnerabilities) & GitHub Security Advisories
 - **REST API** — Automation and CI/CD integration
 - **Modular architecture** — Easy to extend with custom modules
-- **230+ automated tests** — 99.5% pass rate
+- **250+ automated tests** — 99.5% pass rate
 - **Interactive CLI** — User-friendly menu system
 - **Multi-language reports** — English output with remediation guides
 

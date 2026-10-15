@@ -15,6 +15,7 @@ import hashlib
 from typing import Dict, List, Optional
 from urllib.parse import urljoin
 from loguru import logger
+from core.oob import OOBEngine
 
 
 class Scanner:
@@ -27,6 +28,7 @@ class Scanner:
         self.findings = []
         self.module_name = "Server-Side Request Forgery (SSRF) Detection"
         self.callback_token = hashlib.md5(self.target_url.encode()).hexdigest()[:12]
+        self.oob = OOBEngine(config)
         
         # SSRF payloads targeting internal services
         self.ssrf_payloads = {
@@ -150,7 +152,25 @@ class Scanner:
                 'cvss_score': 9.5 if info.get('cloud') else 8.0,
                 'evidence': f"Target: {info.get('target')}",
             })
-        
+
+        # Check OOB interactions for Blind SSRF
+        if self.oob and self.oob.enabled:
+            interactions = self.oob.poll_interactions(timeout=1)
+            for event in interactions:
+                self.findings.append({
+                    'title': f"Blind SSRF confirmed via Out-of-Band callback on '{event['param_name']}'",
+                    'severity': 'critical',
+                    'description': (
+                        f"Target server triggered an Out-of-Band {event['protocol']} callback to '{event['domain']}' "
+                        f"when probing parameter '{event['param_name']}'. This conclusively proves Blind SSRF."
+                    ),
+                    'recommendation': "Enforce strict allowlists and disable remote URL fetches without domain validation.",
+                    'module': self.module_name,
+                    'cwe_id': 'CWE-918',
+                    'cvss_score': 9.8,
+                    'evidence': f"Callback Domain: {event['domain']}\nToken: {event['token']}",
+                })
+
         result['findings'] = self.findings
         return result
     
@@ -214,5 +234,12 @@ class Scanner:
                             'target': payload,
                             'indicator': indicator,
                         }
-        
+
+        # Test Out-of-Band (Blind SSRF)
+        if self.oob and self.oob.enabled:
+            oob_data = self.oob.get_payload(vuln_type="ssrf", param_name=param_name)
+            test_params = params.copy()
+            test_params[param_name] = oob_data['http_url']
+            self.browser.get(url, params=test_params)
+
         return None

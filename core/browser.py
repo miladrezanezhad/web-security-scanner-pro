@@ -35,7 +35,13 @@ class StealthBrowser:
     to avoid detection by WAFs, rate limiters, and security systems.
     """
     
-    def __init__(self, target_url: str, evasion_config: EvasionConfig = None, verify_ssl: bool = False):
+    def __init__(
+        self,
+        target_url: str,
+        evasion_config: EvasionConfig = None,
+        verify_ssl: bool = False,
+        auth_config: Optional[Dict] = None
+    ):
         """
         Initialize the stealth browser.
 
@@ -43,10 +49,12 @@ class StealthBrowser:
             target_url: Target URL for all requests
             evasion_config: Evasion engine configuration
             verify_ssl: Whether to verify SSL certificates (default False for pentesting)
+            auth_config: Authentication & custom whitelisting headers/cookies
         """
         self.target_url = target_url.rstrip('/')
         self.evasion_config = evasion_config or EvasionConfig()
         self.verify_ssl = verify_ssl
+        self.auth_config = auth_config or {}
         self.evasion = EvasionEngine(self.evasion_config)
         self.session = self._create_session()
         
@@ -104,7 +112,28 @@ class StealthBrowser:
         if not session.verify:
             import urllib3
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        
+
+        # Apply default authentication & whitelisted headers/cookies to session
+        if hasattr(self, 'auth_config') and self.auth_config:
+            # Inject session cookies
+            cookies = self.auth_config.get('cookies', {})
+            if isinstance(cookies, dict):
+                for c_name, c_val in cookies.items():
+                    if c_val:
+                        session.cookies.set(c_name, str(c_val))
+
+            # Inject Bearer token
+            bearer_token = self.auth_config.get('bearer_token', '')
+            if bearer_token:
+                session.headers['Authorization'] = f"Bearer {bearer_token}"
+
+            # Inject custom whitelisted headers (e.g. X-Scanner-Auth, WAF bypass keys)
+            custom_headers = self.auth_config.get('custom_headers', {})
+            if isinstance(custom_headers, dict):
+                for h_name, h_val in custom_headers.items():
+                    if h_val:
+                        session.headers[h_name] = str(h_val)
+
         return session
     
     def get(
@@ -382,12 +411,24 @@ class StealthBrowser:
     def add_proxy(self, proxy_url: str):
         """
         Add a proxy to the rotation pool.
-        
+
         Args:
             proxy_url: Proxy URL (e.g., 'http://user:pass@host:port')
         """
         self.evasion.add_proxy(proxy_url)
-    
+
+    def set_auth_header(self, name: str, value: str):
+        """Set or update a persistent custom whitelisted header."""
+        self.session.headers[name] = str(value)
+
+    def set_bearer_token(self, token: str):
+        """Set or update persistent Bearer authentication token."""
+        self.session.headers['Authorization'] = f"Bearer {token}"
+
+    def set_cookie(self, name: str, value: str):
+        """Set or update a session cookie."""
+        self.session.cookies.set(name, str(value))
+
     def load_proxies_from_file(self, filepath: str):
         """
         Load proxies from a file (one per line).

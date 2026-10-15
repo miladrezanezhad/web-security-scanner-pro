@@ -31,6 +31,18 @@ proxy:
   tor_enabled: false
   tor_port: 9050
 
+# Authenticated & Whitelisted Audits (Bypass WAFs, CAPTCHAs, and test protected areas)
+authentication:
+  enabled: false
+  # Custom bypass headers whitelisted in Cloudflare, AWS WAF, or server WAFs
+  custom_headers:
+    X-Scanner-Auth: ""
+    X-Forwarded-For: ""
+  # Bearer token for API endpoints or OAuth sessions
+  bearer_token: ""
+  # Session cookies (e.g. PHPSESSID, wordpress_logged_in, session_id)
+  cookies: {}
+
 # Vulnerability database
 database:
   path: "database/vulnerabilities.db"
@@ -77,6 +89,9 @@ modules:
     file_upload: true
     deserialization: false
     ssrf: true
+    dom_xss: true
+    sensitive_files: true
+    access_control: true
   ssl_tls:
     certificate_analysis: true
     protocol_check: true
@@ -91,10 +106,39 @@ modules:
 
 # Reporting settings
 reporting:
-  formats: ["html", "json"]
+  formats: ["html", "json", "sarif"]
   output_directory: "reports/output"
   include_remediation: true
   include_evidence: true
+
+# Webhook notifications (Discord, Slack, Telegram)
+notifications:
+  enabled: false
+  critical_only: true
+  discord_webhook: ""
+  slack_webhook: ""
+  telegram_bot_token: ""
+  telegram_chat_id: ""
+
+# Declarative YAML Templates (Nuclei-style engine)
+templates:
+  enabled: true
+  directory: "templates"
+
+# Web Spider & Asset Discovery settings
+crawler:
+  enabled: true
+  max_depth: 2
+  max_pages: 30
+  extract_js_endpoints: true
+  enumerate_subdomains: true
+
+# Out-of-Band (OOB) Interaction Testing (Blind SSRF, Blind RCE, Blind XXE)
+oob:
+  enabled: true
+  provider: "interactsh"
+  server_host: "oast.pro"
+  custom_url: ""
 
 # Alert thresholds
 alerts:

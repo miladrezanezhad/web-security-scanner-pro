@@ -1,0 +1,28 @@
+id: springboot-actuator-env
+info:
+  name: Spring Boot Actuator Environment Exposure
+  author: Milad Rezanezhad
+  severity: critical
+  description: Spring Boot Actuator /env endpoint is publicly accessible, potentially exposing database passwords, API tokens, and internal network configuration.
+  reference:
+    - https://docs.spring.io/spring-boot/docs/current/actuator-api/htmlsingle/#env
+  cwe_id: CWE-200
+  cvss_score: 9.8
+  recommendation: Restrict access to /actuator endpoints using Spring Security or set management.endpoints.web.exposure.exclude=env in application.properties.
+
+requests:
+  - method: GET
+    path:
+      - "/actuator/env"
+      - "/env"
+    matchers_condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+      - type: word
+        part: body
+        words:
+          - "propertySources"
+          - "activeProfiles"
+        condition: or

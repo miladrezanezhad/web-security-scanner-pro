@@ -29,6 +29,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeEl
 
 from core.browser import StealthBrowser
 from core.evasion import EvasionEngine, EvasionConfig, ScanMode
+from core.oob import OOBEngine
 
 console = Console()
 
@@ -183,6 +184,8 @@ class SecurityScanner:
         'deserialization': 'modules.vulnerabilities.deserialization',
         'ssrf': 'modules.vulnerabilities.ssrf',
         'dom_xss': 'modules.vulnerabilities.dom_xss',
+        'sensitive_files': 'modules.vulnerabilities.sensitive_files',
+        'access_control': 'modules.vulnerabilities.access_control',
         
         # SSL/TLS
         'ssl': 'modules.ssl_tls.certificate',
@@ -197,6 +200,12 @@ class SecurityScanner:
         'graphql': 'modules.api_security.graphql',
         'rest_api': 'modules.api_security.rest_api',
         'jwt': 'modules.api_security.jwt',
+
+        # Template Engine
+        'templates': 'core.templates',
+
+        # Web Spider & Asset Discovery
+        'crawler': 'core.crawler',
     }
     
     def __init__(self, target_url: str, config: Dict):
@@ -220,9 +229,13 @@ class SecurityScanner:
         evasion_config = EvasionConfig(mode=mode_map.get(mode_str, ScanMode.STEALTH))
         self.evasion = EvasionEngine(evasion_config)
         
-        # Initialize browser
+        # Initialize browser with auth & whitelisting configuration
         verify_ssl = config.get('scan_mode', {}).get('verify_ssl', False)
-        self.browser = StealthBrowser(target_url, evasion_config, verify_ssl=verify_ssl)
+        auth_config = config.get('authentication', {})
+        self.browser = StealthBrowser(target_url, evasion_config, verify_ssl=verify_ssl, auth_config=auth_config)
+
+        # Initialize Out-of-Band (OOB) Engine
+        self.oob = OOBEngine(config)
         
         # Initialize result container
         self.result = ScanResult(

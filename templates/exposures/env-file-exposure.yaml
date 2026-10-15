@@ -1,0 +1,28 @@
+id: env-file-exposure
+info:
+  name: Environment Variables File (.env) Exposure
+  author: Milad Rezanezhad
+  severity: critical
+  description: The .env file is publicly accessible, leaking sensitive secrets like DB_PASSWORD, APP_KEY, and private API keys.
+  reference:
+    - https://cwe.mitre.org/data/definitions/538.html
+  cwe_id: CWE-538
+  cvss_score: 9.8
+  recommendation: Deny public access to .env files and move sensitive secrets outside web root.
+
+requests:
+  - method: GET
+    path:
+      - "/.env"
+      - "/.env.local"
+      - "/.env.production"
+    matchers_condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+      - type: regex
+        part: body
+        regex:
+          - "(?i)(DB_PASSWORD|APP_KEY|SECRET_KEY|DATABASE_URL)"
+        condition: or
