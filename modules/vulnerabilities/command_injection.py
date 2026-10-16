@@ -13,6 +13,7 @@ import time
 from typing import Dict, List, Optional
 from urllib.parse import urljoin
 from loguru import logger
+from core.oob import OOBEngine
 
 
 class Scanner:
@@ -32,7 +33,8 @@ class Scanner:
         self.config = config
         self.findings = []
         self.module_name = "OS Command Injection"
-        
+        self.oob = OOBEngine(config)
+
         # Command injection payloads
         self.payloads = {
             'time_based': [
@@ -158,7 +160,25 @@ class Scanner:
                     'https://cheatsheetseries.owasp.org/cheatsheets/OS_Command_Injection_Defense_Cheat_Sheet.html',
                 ]
             })
-        
+
+        # Check OOB interactions for Blind Command Injection
+        if self.oob and self.oob.enabled:
+            interactions = self.oob.poll_interactions(timeout=1)
+            for event in interactions:
+                self.findings.append({
+                    'title': f"Blind Command Injection confirmed via OOB callback on '{event['param_name']}'",
+                    'severity': 'critical',
+                    'description': (
+                        f"Target server triggered an Out-of-Band {event['protocol']} callback to '{event['domain']}' "
+                        f"when probing parameter '{event['param_name']}'. This conclusively proves Blind Command Injection RCE."
+                    ),
+                    'recommendation': "Prevent user input from being concatenated into shell commands. Use parameterized APIs.",
+                    'module': self.module_name,
+                    'cwe_id': 'CWE-78',
+                    'cvss_score': 10.0,
+                    'evidence': f"Callback Domain: {event['domain']}\nToken: {event['token']}\nRaw: {event['raw']}",
+                })
+
         result['findings'] = self.findings
         
         logger.info(f"{self.module_name} complete. Found {len(self.findings)} vulnerabilities")
@@ -276,5 +296,21 @@ class Scanner:
                             'type': 'error_based',
                             'evidence': f"Response contains error: '{indicator}'"
                         }
-        
+
+        # Test 5: Out-of-Band (Blind Command Injection)
+        if self.oob and self.oob.enabled:
+            oob_data = self.oob.get_payload(vuln_type="rce", param_name=param_name)
+
+            oob_payloads = [
+                f"; {oob_data['curl_cmd']} #",
+                f"| {oob_data['curl_cmd']} #",
+                f"$( {oob_data['curl_cmd']} )",
+                f"; {oob_data['nslookup_cmd']} #",
+            ]
+
+            for payload in oob_payloads:
+                test_params = params.copy()
+                test_params[param_name] = payload
+                self.browser.get(url, params=test_params)
+
         return None
